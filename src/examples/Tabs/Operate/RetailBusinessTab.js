@@ -1,0 +1,734 @@
+/* eslint-disable react/function-component-definition */
+import React, { useMemo, useState, useEffect } from "react";
+import MDBox from "components/MDBox";
+import { Modal, Box, Select, MenuItem, Typography, Button, TextField } from "@mui/material";
+import MDTypography from "components/MDTypography";
+import MDButton from "components/MDButton";
+import useRetailBusinessData from "./retailBusinessData";
+import LoadingScreen from "layouts/loading/loadingscreen";
+import axios from "axios";
+import Swal from "sweetalert2";
+
+function RetailBusinessTab() {
+  const { activeRows, loading, fetcRetailBusinessList } = useRetailBusinessData();
+  const [rows, setRows] = useState([]);
+  const [originalRows, setOriginalRows] = useState([]);
+  const [viewImageSrc, setViewImageSrc] = useState(null);
+
+  const API_BASE_URL = "http://localhost:8080";
+
+  // ✅ 초기 데이터 조회 (기본 조회)
+  useEffect(() => {
+    fetcRetailBusinessList();
+  }, []);
+
+  // ✅ activeRows → rows / originalRows 복사
+  useEffect(() => {
+    const deepCopy = activeRows.map((r) => ({ ...r }));
+    setRows(deepCopy);
+    setOriginalRows(deepCopy);
+  }, [activeRows]);
+
+  // ✅ 셀 값 비교용 normalize
+  const normalize = (value) =>
+    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : value;
+
+  const getCellStyle = (rowIndex, key, value) => {
+    const original = originalRows[rowIndex]?.[key];
+    if (typeof original === "string" && typeof value === "string") {
+      return normalize(original) !== normalize(value) ? { color: "red" } : { color: "black" };
+    }
+    return original !== value ? { color: "red" } : { color: "black" };
+  };
+
+  // ✅ 셀 값 변경
+  const handleCellChange = (rowIndex, key, value) => {
+    setRows((prev) =>
+      prev.map((row, i) => (i === rowIndex ? { ...row, [key]: value } : row))
+    );
+  };
+
+  // ✅ 이미지 확대
+  const handleViewImage = (value) => {
+    if (!value) return;
+    setViewImageSrc(typeof value === "object" ? URL.createObjectURL(value) : `${API_BASE_URL}${value}`);
+  };
+  const handleCloseViewer = () => setViewImageSrc(null);
+
+  // ✅ 이미지 업로드 (folder = row.type)
+  const uploadImage = async (file, typeValue, field) => {
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "account");
+      formData.append("gubun", field);
+      formData.append("folder", "retail"); // ✅ accountId 대신 type 값
+
+      const res = await axios.post(`${API_BASE_URL}/Operate/OperateImgUpload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (res.data.code === 200) return res.data.image_path;
+    } catch {
+      Swal.fire("오류", "이미지 업로드 실패", "error");
+    }
+  };
+
+  // ✅ 저장 (account_id 제거 + type 기반 이미지업로드)
+  const handleSave = async () => {
+    try {
+      const modifiedRows = await Promise.all(
+        rows.map(async (row, idx) => {
+          const original = originalRows[idx] || {};
+          let updatedRow = { ...row };
+
+          const isChanged = Object.keys(updatedRow).some((key) => {
+            const origVal = original[key];
+            const curVal = updatedRow[key];
+            if (typeof origVal === "string" && typeof curVal === "string")
+              return normalize(origVal) !== normalize(curVal);
+            return origVal !== curVal;
+          });
+
+          if (!isChanged) return null;
+
+          for (const field of ["bank_image", "biz_image"]) {
+            if (row[field] && typeof row[field] === "object") {
+              const uploadedPath = await uploadImage(row[field], row.type, field); // ✅ type으로 업로드
+              updatedRow[field] = uploadedPath;
+            }
+          }
+
+          return updatedRow; // ✅ account_id 강제 입력 제거
+        })
+      );
+
+      const payload = modifiedRows.filter(Boolean);
+      if (payload.length === 0) {
+        Swal.fire("안내", "변경된 내용이 없습니다.", "info");
+        return;
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/Operate/AccountRetailBusinessSaveV2`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.data.code === 200) {
+        Swal.fire("성공", "저장되었습니다.", "success");
+        await fetcRetailBusinessList();
+      }
+    } catch {
+      Swal.fire("오류", "저장 중 오류", "error");
+    }
+  };
+
+  // ✅ 테이블 컬럼 정의
+  const columns = useMemo(
+    () => [
+      { header: "업체명", accessorKey: "name", size: 100 },
+      { header: "사업자번호", accessorKey: "biz_no", size: 80 },
+      { header: "대표자명", accessorKey: "ceo_name", size: 100 },
+      { header: "전화번호", accessorKey: "tel", size: 80 },
+      { header: "은행명", accessorKey: "bank_name", size: 80 },
+      { header: "계좌번호", accessorKey: "bank_no", size: 80 },
+      { header: "통장사본", accessorKey: "bank_image", size: 80 },
+      { header: "사업자등록증", accessorKey: "biz_image", size: 80 },
+      { header: "삭제여부", accessorKey: "del_yn", size: 50 },
+      { header: "연결 거래처", accessorKey: "account_name", size: 80 },
+    ],
+    []
+  );
+
+  // ✅ 테이블 스타일 유지
+  const tableSx = {
+    flex: 1,
+    minHeight: 0,
+    "& table": {
+      borderCollapse: "separate",
+      width: "max-content",
+      minWidth: "100%",
+      borderSpacing: 0,
+    },
+    "& th, & td": {
+      border: "1px solid #686D76",
+      textAlign: "center",
+      padding: "4px",
+      whiteSpace: "pre-wrap",
+      fontSize: "12px",
+    },
+    "& th": {
+      backgroundColor: "#f0f0f0",
+      position: "sticky",
+      top: 0,
+      zIndex: 2,
+    },
+  };
+  // ========================== Modal 관련 시작 ==========================
+  // 모달 상태 및 항목 관리 상태
+  const [open, setOpen] = useState(false);
+  const [open2, setOpen2] = useState(false);
+
+  // 거래처 등록 부분
+  const [formData, setFormData] = useState({
+    name: "",
+  });
+
+  const [imagePreviews, setImagePreviews] = useState({
+    bank_image: null,
+    biz_image: null,
+  });
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+
+  const handleImagePreviewOpen = (src) => {
+    setPreviewImage(src);
+    setPreviewOpen(true);
+  };
+
+  const handleImagePreviewClose = () => {
+    setPreviewOpen(false);
+    setPreviewImage(null);
+  };
+
+  const handleModalOpen2 = async () => {
+    setOpen2(true);
+  };
+
+  const handleModalClose2 = async () => {
+    setOpen2(false);
+  };
+
+  const handleChange2 = (e) => {
+    const { name, value, files } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: files ? files[0] : value, // 파일은 files[0], 나머지는 value
+    }));
+  };
+
+  // ======================= 이미지 미리보기 =======================
+  const handleImageUploadPreview = (e) => {
+    const { name, files } = e.target;
+    const file = files?.[0];
+    if (!file) return;
+
+    // 미리보기 설정
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviews((prev) => ({ ...prev, [name]: previewUrl }));
+
+    // formData에 파일 객체 저장
+    setFormData((prev) => ({ ...prev, [name]: file }));
+  };
+
+  // ======================= 거래처 저장 =======================
+  const handleSubmit2 = async () => {
+    const requiredFields = [
+      "name",
+      "biz_no",
+      "ceo_name",
+      "tel",
+      "bank_name",
+      "bank_no",
+      "bank_image",
+      "biz_image",
+    ];
+
+    const missing = requiredFields.filter((key) => !formData[key]);
+    if (missing.length > 0) {
+      return Swal.fire({
+        title: "경고",
+        text: "필수항목을 모두 입력하세요.",
+        icon: "error",
+        confirmButtonColor: "#d33",
+        confirmButtonText: "확인",
+      });
+    }
+
+    try {
+      // ✅ Step 1. 이미지 업로드
+      const imageFields = ["bank_image", "biz_image"];
+      const uploadPromises = imageFields.map(async (field) => {
+        const file = formData[field];
+        if (!file || typeof file === "string") return file; // 이미 경로일 경우
+        
+        try {
+          const formDataToSend = new FormData();
+          formDataToSend.append("file", file);
+          formDataToSend.append("type", "account");
+          formDataToSend.append("gubun", field);
+          formDataToSend.append("folder", "retail");
+
+          const res = await axios.post("http://localhost:8080/Operate/OperateImgUpload", formDataToSend, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+
+          if (res.data.code === 200) {
+            Swal.fire({
+              title: "성공",
+              text: "저장되었습니다.",
+              icon: "success",
+              confirmButtonColor: "#d33",
+              confirmButtonText: "확인",
+            });
+    
+            return res.data.image_path;
+          }
+        } catch (err) {
+            Swal.fire({
+              title: "실패",
+              text: err,
+              icon: "error",
+              confirmButtonColor: "#d33",
+              confirmButtonText: "확인",
+            });
+    
+          throw err;
+        }
+      });
+
+      const [bankPath, bizPath] = await Promise.all(uploadPromises);
+
+      // ✅ Step 2. 최종 formData 구성
+      const payload = {
+        ...formData,
+        bank_image: bankPath,
+        biz_image: bizPath,
+        del_yn: "N",
+      };
+
+      // ✅ Step 3. 거래처 저장 API 호출
+      const response = await axios.post("http://localhost:8080/Operate/AccountRetailBusinessSave", payload);
+      if (response.data.code === 200) {
+        Swal.fire({
+          title: "성공",
+          text: "거래처가 등록되었습니다.",
+          icon: "success",
+          confirmButtonColor: "#3085d6",
+          confirmButtonText: "확인",
+        });
+        setOpen2(false);
+        setFormData({});
+        setImagePreviews({});
+        fetcRetailBusinessList();
+      } else {
+        Swal.fire("실패", response.data.message || "저장 중 오류 발생", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire("에러", err.message || "저장 중 문제가 발생했습니다.", "error");
+    }
+  };
+
+  if (loading) return <LoadingScreen />;
+
+  return (
+    <>
+      {/* ✅ 저장 버튼만 유지 (거래처 select 삭제됨) */}
+      <MDBox pt={1} pb={1} gap={1} sx={{ display: "flex", justifyContent: "flex-end" }}>
+        <MDButton variant="gradient" color="info" onClick={handleModalOpen2}>
+          거래처 등록
+        </MDButton>
+        <MDButton color="info" onClick={handleSave}>
+          저장
+        </MDButton>
+      </MDBox>
+      {/* ✅ 테이블 렌더 */}
+      <MDBox pt={4} pb={3} sx={tableSx}>
+        <MDBox
+          mx={0}
+          mt={-3}
+          py={1}
+          px={2}
+          variant="gradient"
+          bgColor="info"
+          borderRadius="lg"
+          coloredShadow="info"
+          display="flex"
+          justifyContent="space-between"
+        >
+          <MDTypography variant="h6" color="white">
+            거래처 관리
+          </MDTypography>
+        </MDBox>
+
+        <table>
+          <thead>
+            <tr>
+              {columns.map((col) => (
+                <th key={col.accessorKey}>{col.header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {columns.map((col) => {
+                  const key = col.accessorKey;
+                  const value = row[key] ?? "";
+                  const style = getCellStyle(rowIndex, key, value);
+
+                  // ✅ 삭제여부 select
+                  if (key === "del_yn") {
+                    return (
+                      <td key={key} style={{ width: col.size }}>
+                        <select
+                          value={value || "N"}
+                          onChange={(e) => handleCellChange(rowIndex, key, e.target.value)}
+                          style={{
+                            width: "100%",
+                            border: "none",
+                            background: "transparent",
+                            fontSize: "12px",
+                            ...style,
+                          }}
+                        >
+                          <option value="N">N</option>
+                          <option value="Y">Y</option>
+                        </select>
+                      </td>
+                    );
+                  }
+
+                  // ✅ 이미지 필드 (오른쪽 버튼 + 정렬 유지)
+                  if (["bank_image", "biz_image"].includes(key)) {
+                    return (
+                      <td key={key} style={{ verticalAlign: "middle", width: col.size }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id={`upload-${key}-${rowIndex}`}
+                            style={{ display: "none" }}
+                            onChange={(e) =>
+                              handleCellChange(rowIndex, key, e.target.files[0])
+                            }
+                          />
+
+                          {value && (
+                            <img
+                              src={
+                                typeof value === "object"
+                                  ? URL.createObjectURL(value)
+                                  : `${API_BASE_URL}${value}`
+                              }
+                              alt="preview"
+                              style={{ maxWidth: "60px", maxHeight: "60px", cursor: "pointer" }}
+                              onClick={() => handleViewImage(value)}
+                            />
+                          )}
+
+                          <label htmlFor={`upload-${key}-${rowIndex}`}>
+                            <MDButton component="span" size="small" color="info">
+                              업로드
+                            </MDButton>
+                          </label>
+                        </div>
+                      </td>
+                    );
+                  }
+
+                  // ✅ 일반 텍스트 셀
+                  return (
+                    <td
+                      key={key}
+                      contentEditable={key !== "account_name"}   // ✅ account_name일 경우 수정 불가
+                      suppressContentEditableWarning
+                      style={{...style, width: col.size}}
+                      onBlur={(e) => {
+                        if (key !== "account_name") {
+                          handleCellChange(rowIndex, key, e.target.innerText.trim());
+                        }
+                      }}
+                    >
+                      {value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </MDBox>
+      {/* ✅ 이미지 확대 팝업 */}
+      {viewImageSrc && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999,
+          }}
+          onClick={handleCloseViewer}
+        >
+          <img src={viewImageSrc} alt="미리보기" style={{ maxWidth: "80%", maxHeight: "80%" }} />
+        </div>
+      )}
+      <Modal open={open2} onClose={handleModalClose2}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 500,
+            bgcolor: "background.paper",
+            borderRadius: 2,
+            boxShadow: 24,
+            p: 5,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            거래처 등록
+          </Typography>
+
+          {/* 거래처명 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="거래처명"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="name"
+            value={formData.name}
+            onChange={handleChange2}
+          />
+
+          {/* 사업자번호 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="사업자번호"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="biz_no"
+            value={formData.biz_no}
+            onChange={handleChange2}
+            placeholder="예: 123-45-67890"
+          />
+
+          {/* 대표자명 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="대표자명"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="ceo_name"
+            value={formData.ceo_name}
+            onChange={handleChange2}
+          />
+
+          {/* 연락처 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="연락처"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="tel"
+            value={formData.tel}
+            onChange={handleChange2}
+            placeholder="예: 010-1234-5678"
+          />
+
+          {/* 은행명 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="은행명"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="bank_name"
+            value={formData.bank_name}
+            onChange={handleChange2}
+          />
+
+          {/* 계좌번호 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="계좌번호"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="bank_no"
+            value={formData.bank_no}
+            onChange={handleChange2}
+          />
+
+          {/* 통장사본 첨부 */}
+          <Box mt={2} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography sx={{ fontSize: "0.8rem", minWidth: "120px" }}>
+              통장사본 (필수)
+            </Typography>
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 0.5 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                sx={{
+                  color: "#e8a500",
+                  borderColor: "#e8a500",
+                  fontSize: "12px",
+                  height: "32px",
+                  "&:hover": {
+                    borderColor: "#e8a500",
+                    backgroundColor: "rgba(232, 165, 0, 0.1)",
+                  },
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  name="bank_image"
+                  onChange={handleImageUploadPreview}
+                />
+              </Button>
+
+              {/* 파일명 및 미리보기 */}
+              {imagePreviews.bank_image && (
+                <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                  <img
+                    src={imagePreviews.bank_image}
+                    alt="bank_image"
+                    style={{
+                      width: 100,
+                      height: 100,
+                      objectFit: "cover",
+                      borderRadius: 4,
+                      border: "1px solid #ddd",
+                      cursor: "pointer",
+                      transition: "transform 0.2s",
+                    }}
+                    onClick={() => handleImagePreviewOpen(imagePreviews.bank_image)}
+                  />
+                  <Typography variant="caption" sx={{ fontSize: "11px" }}>
+                    {formData.bank_image?.name || "업로드 완료"}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+
+          {/* 사업자등록증 첨부 */}
+          <Box mt={2} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography sx={{ fontSize: "0.8rem", minWidth: "120px" }}>
+              사업자등록증 (필수)
+            </Typography>
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 0.5 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                sx={{
+                  color: "#e8a500",
+                  borderColor: "#e8a500",
+                  fontSize: "12px",
+                  height: "32px",
+                  "&:hover": {
+                    borderColor: "#e8a500",
+                    backgroundColor: "rgba(232, 165, 0, 0.1)",
+                  },
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  name="biz_image"
+                  onChange={handleImageUploadPreview}
+                />
+              </Button>
+
+              {/* 파일명 및 미리보기 */}
+              {imagePreviews.biz_image && (
+                <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                  <img
+                    src={imagePreviews.biz_image}
+                    alt="biz_image"
+                    style={{
+                      width: 100,
+                      height: 100,
+                      objectFit: "cover",
+                      borderRadius: 4,
+                      border: "1px solid #ddd",
+                      cursor: "pointer",
+                      transition: "transform 0.2s",
+                    }}
+                    onClick={() => handleImagePreviewOpen(imagePreviews.biz_image)}
+                  />
+                  <Typography variant="caption" sx={{ fontSize: "11px" }}>
+                    {formData.biz_image?.name || "업로드 완료"}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+
+          {/* 하단 버튼 */}
+          <Box mt={4} display="flex" justifyContent="flex-end" gap={1}>
+            <Button
+              variant="contained"
+              onClick={handleModalClose2}
+              sx={{
+                bgcolor: "#e8a500",
+                color: "#ffffff",
+                "&:hover": { bgcolor: "#e8a500", color: "#ffffff" },
+              }}
+            >
+              취소
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmit2}
+              sx={{ color: "#ffffff" }}
+            >
+              저장
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+      {/* 🔍 이미지 확대 미리보기 모달 */}
+      <Modal open={previewOpen} onClose={handleImagePreviewClose}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            bgcolor: "background.paper",
+            borderRadius: 2,
+            boxShadow: 24,
+            p: 2,
+          }}
+        >
+          {previewImage && (
+            <img
+              src={previewImage}
+              alt="미리보기"
+              style={{
+                maxWidth: "90vw",
+                maxHeight: "80vh",
+                borderRadius: 8,
+                objectFit: "contain",
+              }}
+            />
+          )}
+        </Box>
+      </Modal>
+    </>
+  );
+}
+
+export default RetailBusinessTab;
