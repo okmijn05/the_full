@@ -9,6 +9,7 @@ import useHygienesheetData  from "./hygienesheetData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import api from "api/api";
 import Swal from "sweetalert2";
+import { API_BASE_URL } from "config";
 
 function HygieneSheetTab() {
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -132,7 +133,7 @@ function HygieneSheetTab() {
     if (typeof value === "object") {
       setViewImageSrc(URL.createObjectURL(value));
     } else {
-      setViewImageSrc(`http://localhost:8080${value}`);
+      setViewImageSrc(`${API_BASE_URL}${value}`);
     }
   };
 
@@ -369,7 +370,7 @@ function HygieneSheetTab() {
                               src={
                                 typeof value === "object"
                                   ? URL.createObjectURL(value)
-                                  : `http://localhost:8080${value}`
+                                  : `${API_BASE_URL}${value}`
                               }
                               alt="preview"
                               style={{

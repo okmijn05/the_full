@@ -19,6 +19,7 @@ import PropTypes from "prop-types";
 import Swal from "sweetalert2";
 import api from "api/api";
 import { useParams } from "react-router-dom"; // ✅ 추가
+import { API_BASE_URL } from "config";
 
 // 숫자 컬럼만 천단위 콤마 포맷
 const numericCols = ["basic_price", "diet_price", "before_diet_price", "elderly", "snack", "cesco", "food_process", "dishwasher", "water_puri", "utility_bills"];
@@ -60,7 +61,7 @@ function AccountInfoSheet() {
 
   const handleInputClick = (type) => {
     if (selectedFiles[type]?.path) {
-      setActiveImg(`http://localhost:8080${selectedFiles[type].path}`);
+      setActiveImg(`${API_BASE_URL}${selectedFiles[type].path}`);
       setIsOpen(true);
     }
   };

@@ -17,7 +17,7 @@ import api from "api/api";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import { Download, Trash2, Image as ImageIcon, Plus, RotateCcw } from "lucide-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
+import { API_BASE_URL } from "config";
 import useAccountEventData from "./accountEventData";
 
 export default function AccountEventTab() {
@@ -192,7 +192,7 @@ export default function AccountEventTab() {
     const list = row.images
       .sort((a, b) => a.image_order - b.image_order)
       .map((img) => ({
-        url: `http://localhost:8080${img.image_path}`,
+        url: `${API_BASE_URL}${img.image_path}`,
         name: img.image_name,
         order: img.image_order,
       }));
@@ -546,7 +546,7 @@ export default function AccountEventTab() {
                                 onClick={() => openPreview(index, img.image_order)}
                               >
                                 <img
-                                  src={`http://localhost:8080${img.image_path}`}
+                                  src={`${API_BASE_URL}${img.image_path}`}
                                   alt={img.image_name}
                                   style={{
                                     width: "100%",
@@ -588,7 +588,7 @@ export default function AccountEventTab() {
                                   size="small"
                                   color="success"
                                   component="a"
-                                  href={`http://localhost:8080${img.image_path}`}
+                                  href={`${API_BASE_URL}${img.image_path}`}
                                   download
                                   target="_blank"
                                   rel="noopener noreferrer"

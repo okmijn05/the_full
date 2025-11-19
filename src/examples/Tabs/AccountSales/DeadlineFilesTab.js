@@ -9,6 +9,7 @@ import Swal from "sweetalert2";
 import api from "api/api";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import { Download, Trash2 } from "lucide-react"; // 🔹 아이콘
+import { API_BASE_URL } from "config";
 
 // 🔹 데이터 훅 import
 import useDeadlineFilesData, { formatNumber } from "./deadlineFilesData";
@@ -232,7 +233,7 @@ export default function DeadlineFilesTab() {
                                   size="small"
                                   color="success"
                                   component="a"
-                                  href={`http://localhost:8080${value}`}
+                                  href={`${API_BASE_URL}${value}`}
                                   download
                                   target="_blank"
                                   rel="noopener noreferrer"

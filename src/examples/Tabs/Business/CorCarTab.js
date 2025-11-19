@@ -5,7 +5,7 @@ import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 import { Modal, Box, Typography, Button, TextField, Select, MenuItem } from "@mui/material";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-
+import { API_BASE_URL } from "config";
 import useCarManagerData from "./corCarData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import api from "api/api";
@@ -138,7 +138,7 @@ function CorCarTabStyled() {
     if (typeof value === "object") {
       setViewImageSrc(URL.createObjectURL(value));
     } else {
-      setViewImageSrc(`http://localhost:8080${value}`);
+      setViewImageSrc(`${API_BASE_URL}${value}`);
     }
   };
 
