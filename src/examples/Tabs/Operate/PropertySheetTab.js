@@ -260,16 +260,16 @@ function PropertySheetTab() {
 
   const columns = useMemo(
     () => [
-      { header: "구매일자", accessorKey: "purchase_dt", size: 80 },
+      { header: "구매일자", accessorKey: "purchase_dt", size: 60 },
       { header: "구매처", accessorKey: "purchase_name", size: 100 },
       { header: "품목", accessorKey: "item", size: 150 },
       { header: "규격", accessorKey: "spec", size: 100 },
-      { header: "수량", accessorKey: "qty", size: 80 },
-      { header: "신규/중고", accessorKey: "type", size: 80 },
+      { header: "수량", accessorKey: "qty", size: 60 },
+      { header: "신규/중고", accessorKey: "type", size: 60 },
       { header: "구매가격", accessorKey: "purchase_price", size: 80 },
-      { header: "예상감가(60개월 기준)", accessorKey: "depreciation", size: 80 }, // 🟧 읽기 전용
-      { header: "제품사진", accessorKey: "item_img", size: 150 },
-      { header: "영수증사진", accessorKey: "receipt_img", size: 150 },
+      { header: "예상감가\n(60개월 기준)", accessorKey: "depreciation", size: 80 }, // 🟧 읽기 전용
+      { header: "제품사진", accessorKey: "item_img", size: 130 },
+      { header: "영수증사진", accessorKey: "receipt_img", size: 130 },
       { header: "비고", accessorKey: "note", size: 100 },
     ],
     []
@@ -461,7 +461,7 @@ function PropertySheetTab() {
                         key={key}
                         style={{
                           ...style,
-                          width: "8%",
+                          width: col.size,
                           backgroundColor: "#fafafa",
                           color: "#333",
                         }}
@@ -504,7 +504,7 @@ function PropertySheetTab() {
             left: 0,
             width: "100vw",
             height: "100vh",
-            backgroundColor: "rgba(0,0,0,0.8)",
+            backgroundColor: "rgba(0,0,0,0.7)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
@@ -512,15 +512,42 @@ function PropertySheetTab() {
           }}
           onClick={handleCloseViewer}
         >
-          <TransformWrapper initialScale={1} minScale={0.5} maxScale={5}>
-            <TransformComponent>
-              <img
-                src={viewImageSrc}
-                alt="미리보기"
-                style={{ maxWidth: "80%", maxHeight: "80%" }}
-              />
-            </TransformComponent>
-          </TransformWrapper>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "relative",
+              maxWidth: "100%",
+              maxHeight: "100%",
+            }}
+          >
+            <TransformWrapper initialScale={1} minScale={0.5} maxScale={5} centerOnInit>
+              {({ zoomIn, zoomOut, resetTransform }) => (
+                <>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 16,
+                      right: 16,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      zIndex: 1000,
+                    }}
+                  >
+                    <button onClick={handleCloseViewer}>X</button>
+                  </div>
+
+                  <TransformComponent>
+                    <img
+                      src={encodeURI(viewImageSrc)}
+                      alt="미리보기"
+                      style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }}
+                    />
+                  </TransformComponent>
+                </>
+              )}
+            </TransformWrapper>
+          </div>
         </div>
       )}
     </>
