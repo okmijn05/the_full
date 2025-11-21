@@ -36,7 +36,8 @@ export default function useCarManagerData() {
         service_amt: formatNumber(item.service_amt),
         mileage: formatNumber(item.mileage),
         comment: item.comment || "",
-        exterior_image: item.exterior_image,
+        images: Array.isArray(item.images) ? item.images : [],
+        //exterior_image: item.exterior_image,
         exterior_note: item.exterior_note,
       }));
 
