@@ -52,6 +52,7 @@ import ContractManager from "layouts/accountinfosheet/index";
 // 운영
 import OperateTab from "layouts/operate/operatetab";
 import AccountIssueManager from "layouts/operate/accountissuesheet";
+import BudgetManager from "layouts/operate/budgettablesheet";
 // 회계
 //import DeadlineBalance from "examples/Tabs/AccountSales/DeadlineBalanceTab";
 import AccountSales from "layouts/accountsales/accountsales";
@@ -189,10 +190,10 @@ const routes = [
       {
         type: "collapse",
         name: "📑 예산",
-        key: "business",
+        key: "budget",
         //icon: <Icon fontSize="small">*</Icon>,
-        route: "/business/telemanager",
-        component: <TeleManager />,
+        route: "/budget/budgetManager",
+        component: <BudgetManager />,
         allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
         allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
         accessMode: "AND",

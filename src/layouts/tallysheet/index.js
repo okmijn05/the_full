@@ -284,10 +284,10 @@ function TallySheet() {
     setSelectedLeft([]);
     setSelectedRight([]);
     try {
-      const leftRes = await axios.get("/Operate/AccountMappingList");
+      const leftRes = await api.get("/Operate/AccountMappingList");
       setLeftItems(leftRes.data || []);
       if (selectedAccountId) {
-        const rightRes = await axios.get("/Operate/AccountMappingV2List", {
+        const rightRes = await api.get("/Operate/AccountMappingV2List", {
           params: { account_id: selectedAccountId },
         });
         setRightItems(rightRes.data || []);
@@ -839,6 +839,30 @@ function TallySheet() {
             value={formData.tel}
             onChange={handleChange2}
             placeholder="예: 010-1234-5678"
+          />
+
+          {/* 은행명 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="은행명"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="bank_name"
+            value={formData.bank_name}
+            onChange={handleChange2}
+          />
+
+          {/* 계좌번호 */}
+          <TextField
+            fullWidth
+            required
+            margin="normal"
+            label="계좌번호"
+            InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+            name="bank_no"
+            value={formData.bank_no}
+            onChange={handleChange2}
           />
 
           {/* 통장사본 첨부 */}

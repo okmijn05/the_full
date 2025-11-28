@@ -21,13 +21,22 @@ function DinersNumberSheet() {
   const [year, setYear] = useState(today.year());
   const [month, setMonth] = useState(today.month() + 1);
 
-  const { activeRows, setActiveRows, loading, fetchAllData, account_id } =
-    useDinersNumbersheetData(year, month);
-
   const [originalRows, setOriginalRows] = useState([]);
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const account_name = queryParams.get("name");
+
+  const {
+    activeRows,
+    setActiveRows,
+    loading,
+    fetchAllData,
+    account_id,
+    extraDietCols, // 🔹 훅에서 바로 받기
+  } = useDinersNumbersheetData(year, month);
+
+  // 🔹 "한결" 거래처일 때만 데이케어 컬럼 보이게
+  const isDaycareVisible = account_name && account_name.includes("한결");
 
   const numericCols = [
     "breakfast",
@@ -38,7 +47,23 @@ function DinersNumberSheet() {
     "daycare_diner",
     "employ",
     "total",
-  ];
+    // 🔹 추가 식단가 숫자 컬럼
+    "extra_diet1_price",
+    "extra_diet2_price",
+    "extra_diet3_price",
+    "extra_diet4_price",
+    "extra_diet5_price",
+  ]; // 🔹 special_yn 은 숫자 아님!
+
+  // ✅ 합계 계산
+  const calculateTotal = (row) => {
+    const breakfast = parseNumber(row.breakfast);
+    const lunch = parseNumber(row.lunch);
+    const dinner = parseNumber(row.dinner);
+    const ceremony = parseNumber(row.ceremony);
+    const avgMeals = (breakfast + lunch + dinner) / 3;
+    return Math.round(avgMeals + ceremony);
+  };
 
   // ✅ 초기 데이터 동기화 (수정됨)
   useEffect(() => {
@@ -47,23 +72,33 @@ function DinersNumberSheet() {
     const daysInMonth = dayjs(`${year}-${month}-01`).daysInMonth();
 
     // 한 달 전체 기본 구조
-    const baseRows = Array.from({ length: daysInMonth }, (_, i) => ({
-      diner_date: dayjs(`${year}-${month}-${i + 1}`).toDate(),
-      diner_year: year,
-      diner_month: month,
-      breakfast: 0,
-      lunch: 0,
-      dinner: 0,
-      ceremony: 0,
-      daycare_lunch: 0,
-      daycare_diner: 0,
-      employ: 0,
-      total: 0,
-      note: "",
-      breakfastcancel: "",
-      lunchcancel: "",
-      dinnercancel: "",
-    }));
+    const baseRows = Array.from({ length: daysInMonth }, (_, i) => {
+      const base = {
+        diner_date: dayjs(`${year}-${month}-${i + 1}`).toDate(),
+        diner_year: year,
+        diner_month: month,
+        breakfast: 0,
+        lunch: 0,
+        dinner: 0,
+        ceremony: 0,
+        daycare_lunch: 0,
+        daycare_diner: 0,
+        employ: 0,
+        total: 0,
+        note: "",
+        breakfastcancel: "",
+        lunchcancel: "",
+        dinnercancel: "",
+        special_yn: "N",        // 🔹 기본값 추가
+      };
+
+      // 🔹 추가 식단가 price 컬럼도 기본값 0으로 추가
+      extraDietCols.forEach((col) => {
+        base[col.priceKey] = 0;
+      });
+
+      return base;
+    });
 
     // DB 데이터와 병합
     const merged = baseRows.map((base) => {
@@ -75,14 +110,15 @@ function DinersNumberSheet() {
           itemDate.date() === dayjs(base.diner_date).date()
         );
       });
-      return found
-        ? { ...base, ...found, total: calculateTotal(found) }
-        : { ...base, total: calculateTotal(base) };
+
+      const mergedRow = found ? { ...base, ...found } : { ...base };
+
+      return { ...mergedRow, total: calculateTotal(mergedRow) };
     });
 
     setActiveRows(merged);
     setOriginalRows(merged);
-  }, [account_id, loading, year, month]);
+  }, [account_id, loading, year, month, extraDietCols]);
 
   // ✅ 2️⃣ originalRows는 최초 한 번만 복사
   useEffect(() => {
@@ -90,16 +126,6 @@ function DinersNumberSheet() {
       setOriginalRows(activeRows.map((r) => ({ ...r })));
     }
   }, [loading, activeRows]);
-
-  // ✅ 합계 계산
-  const calculateTotal = (row) => {
-    const breakfast = parseNumber(row.breakfast);
-    const lunch = parseNumber(row.lunch);
-    const dinner = parseNumber(row.dinner);
-    const ceremony = parseNumber(row.ceremony);
-    const avgMeals = (breakfast + lunch + dinner) / 3;
-    return Math.round(avgMeals + ceremony);
-  };
 
   // ✅ 셀 변경
   const handleCellChange = (rowIndex, key, value) => {
@@ -112,7 +138,7 @@ function DinersNumberSheet() {
     );
   };
 
-  // ✅ 스타일 비교 (RetailBusinessTab 방식)
+  // ✅ 스타일 비교
   const normalize = (v) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") : v);
   const getCellStyle = (rowIndex, key, value) => {
     const original = originalRows[rowIndex]?.[key];
@@ -149,10 +175,7 @@ function DinersNumberSheet() {
     }));
 
     try {
-      const res = await api.post(
-        "/Operate/AccountDinnersNumberSave",
-        payload
-      );
+      const res = await api.post("/Operate/AccountDinnersNumberSave", payload);
       if (res.data.code === 200) {
         Swal.fire("성공", "저장되었습니다.", "success");
         await fetchAllData();
@@ -163,6 +186,30 @@ function DinersNumberSheet() {
   };
 
   if (loading) return <LoadingScreen />;
+
+  // 🧩 여기서부터 렌더 키 배열 구성
+  const baseColumns = [
+    "breakfast",
+    "lunch",
+    "special_yn",   // 🔹 중식 오른쪽에 special_yn
+    "dinner",
+    "ceremony",
+    // 🔹 extra diet price 컬럼들 (경관식 바로 다음)
+    ...extraDietCols.map((col) => col.priceKey),
+    "daycare_lunch",
+    "daycare_diner",
+    "employ",
+    "total",
+    "note",
+    "breakfastcancel",
+    "lunchcancel",
+    "dinnercancel",
+  ];
+
+  // 🔹 한결이 아니면 데이케어 두 컬럼 제거
+  const visibleColumns = isDaycareVisible
+    ? baseColumns
+    : baseColumns.filter((k) => !["daycare_lunch", "daycare_diner"].includes(k));
 
   return (
     <DashboardLayout>
@@ -193,27 +240,7 @@ function DinersNumberSheet() {
       <MDBox pt={1} pb={3}>
         <Grid container spacing={6}>
           <Grid item xs={12}>
-            <Card sx={{ height: "calc(100vh - 160px)", display: "flex", flexDirection: "column" }}>
-              {/* ✅ 헤더 영역 */}
-              {/* <MDBox
-                mx={0}
-                mt={-3}
-                py={1}
-                px={2}
-                variant="gradient"
-                bgColor="info"
-                borderRadius="lg"
-                coloredShadow="info"
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
-              >
-                <MDTypography variant="h6" color="white">
-                  식수현황 (업장명 : {account_name || "미지정"})
-                </MDTypography>
-              </MDBox> */}
-
-              {/* ✅ 테이블 스타일 (디자인 유지) */}
+            <Card sx={{ height: "calc(98vh - 160px)", display: "flex", flexDirection: "column" }}>
               <MDBox
                 pt={0}
                 sx={{
@@ -232,19 +259,13 @@ function DinersNumberSheet() {
                     padding: "4px",
                     whiteSpace: "nowrap",
                     fontSize: "12px",
+                    width: "7%",
                   },
                   "& th": {
                     backgroundColor: "#f0f0f0",
                     position: "sticky",
                     top: 0,
-                    zIndex: 2,
-                  },
-                  "& td:first-of-type, & th:first-of-type": {
-                    position: "sticky",
-                    left: 0,
-                    background: "#f0f0f0",
-                    zIndex: 3,
-                    width: "3%",
+                    zIndex: 10,
                   },
                 }}
               >
@@ -254,10 +275,19 @@ function DinersNumberSheet() {
                       <th>구분</th>
                       <th>조식</th>
                       <th>중식</th>
+                      <th>특식여부</th> {/* 🔹 special_yn 헤더 추가 */}
                       <th>석식</th>
                       <th>경관식</th>
-                      <th>데이케어 점심</th>
-                      <th>데이케어 석식</th>
+
+                      {/* 🔹 extra_diet name 컬럼 (경관식 오른쪽) */}
+                      {extraDietCols.map((col) => (
+                        <th key={col.priceKey}>{col.name}</th>
+                      ))}
+
+                      {/* 🔹 한결일 때만 데이케어 헤더 표시 */}
+                      {isDaycareVisible && <th>데이케어 점심</th>}
+                      {isDaycareVisible && <th>데이케어 석식</th>}
+
                       <th>직원</th>
                       <th>계</th>
                       <th>비고</th>
@@ -271,40 +301,51 @@ function DinersNumberSheet() {
                       <tr key={rowIndex}>
                         <td>{dayjs(row.diner_date).format("YYYY-MM-DD")}</td>
 
-                        {[
-                          "breakfast",
-                          "lunch",
-                          "dinner",
-                          "ceremony",
-                          "daycare_lunch",
-                          "daycare_diner",
-                          "employ",
-                          "total",
-                          "note",
-                          "breakfastcancel",
-                          "lunchcancel",
-                          "dinnercancel",
-                        ].map((key) => {
+                        {visibleColumns.map((key) => {
                           const editable = !["total", "diner_date"].includes(key);
                           const value = row[key] ?? "";
                           const isNumeric = numericCols.includes(key);
                           const style = getCellStyle(rowIndex, key, value);
+                          const isSpecial = key === "special_yn";
 
                           return (
                             <td
                               key={key}
-                              contentEditable={editable}
+                              contentEditable={editable && !isSpecial} // 🔹 special_yn 은 contentEditable X
                               suppressContentEditableWarning
                               style={{ ...style, width: "80px" }}
                               onBlur={(e) => {
+                                if (isSpecial) return; // 🔹 select 는 onBlur 처리 안 함
+
                                 let newValue = e.target.innerText.trim();
                                 if (isNumeric) newValue = parseNumber(newValue);
                                 handleCellChange(rowIndex, key, newValue);
-                                if (isNumeric)
-                                  e.currentTarget.innerText = formatNumber(newValue);
+                                if (isNumeric) e.currentTarget.innerText = formatNumber(newValue);
                               }}
                             >
-                              {isNumeric ? formatNumber(value) : value}
+                              {isSpecial ? (
+                                <select
+                                  value={value || "N"}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value; // "Y" or "N"
+                                    handleCellChange(rowIndex, key, newValue);
+                                  }}
+                                  style={{
+                                    width: "100%",
+                                    border: "none",
+                                    background: "transparent",
+                                    textAlign: "center",
+                                    ...style,
+                                  }}
+                                >
+                                  <option value="Y">유</option>
+                                  <option value="N">무</option>
+                                </select>
+                              ) : isNumeric ? (
+                                formatNumber(value)
+                              ) : (
+                                value
+                              )}
                             </td>
                           );
                         })}

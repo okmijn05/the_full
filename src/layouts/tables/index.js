@@ -81,9 +81,11 @@ export default function Tables() {
             <MDBox display="flex" justifyContent="flex-end" alignItems="center" gap={2} my={1} mx={1}>
               <TextField select size="small" onChange={onSearchList} sx={{ minWidth: 150 }} SelectProps={{ native: true }} value={selectedType}>
                 <option value="0">전체</option>
-                <option value="1">위탁급식</option>
-                <option value="2">도소매</option>
+                <option value="1">요양원</option>
+                {/* <option value="2">도소매</option>
+                <option value="3">프랜차이즈</option> */}
                 <option value="4">산업체</option>
+                <option value="5">학교</option>
               </TextField>
               <MDBox display="flex" justifyContent="center" alignItems="center" width="2.25rem" height="2.25rem" bgColor="white" shadow="sm" borderRadius="50%" color="warning" sx={{ cursor: "pointer" }} onClick={handleModalOpen}>
                 <Icon fontSize="large" color="inherit">add</Icon>
@@ -133,20 +135,21 @@ export default function Tables() {
       <Modal open={open} onClose={handleModalClose}>
         <Box sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 500, bgcolor: "background.paper", borderRadius: 2, boxShadow: 24, p: 5 }}>
           <Typography variant="h6" gutterBottom>거래처 등록</Typography>
-          <TextField fullWidth margin="normal" label="거래처명" name="account_name" value={formData.account_name} onChange={handleChange} />
+          <TextField fullWidth margin="normal" label="거래처명" name="account_name" value={formData.account_name} onChange={handleChange} InputLabelProps={{style: { fontSize: "0.7rem" }, }}/>
           <Box display="flex" gap={1}>
-            <TextField fullWidth margin="normal" label="주소" name="account_address" value={formData.account_address} onChange={handleChange} />
+            <TextField fullWidth margin="normal" label="주소" name="account_address" value={formData.account_address} onChange={handleChange} InputLabelProps={{style: { fontSize: "0.7rem" }, }}/>
             <Button variant="contained" onClick={() => setAddrOpen(true)} sx={{ mt: 2, padding: "1px 5px", margin: "15px 0px 27px", color: "#ffffff", bgcolor: "#009439", "&:hover": { bgcolor: "#009439", color: "#ffffff" } }}>주소찾기</Button>
           </Box>
-          <TextField fullWidth margin="normal" label="상세주소" name="account_address_detail" value={formData.account_address_detail} onChange={handleChange} />
-          <TextField fullWidth margin="normal" label="연락처" name="phone" value={formData.phone} onChange={handleChange} />
+          <TextField fullWidth margin="normal" label="상세주소" name="account_address_detail" value={formData.account_address_detail} onChange={handleChange} InputLabelProps={{style: { fontSize: "0.7rem" }, }}/>
+          <TextField fullWidth margin="normal" label="연락처" name="phone" value={formData.phone} onChange={handleChange} InputLabelProps={{style: { fontSize: "0.7rem" }, }}/>
           <Box display="flex" gap={2}>
             <TextField select fullWidth margin="normal" name="account_type" value={formData.account_type} onChange={handleChange} SelectProps={{ native: true }}>
               <option value="">선택</option>
-              <option value="1">위탁급식</option>
-              <option value="2">도소매</option>
-              <option value="3">프랜차이즈</option>
+              <option value="1">요양원</option>
+              {/* <option value="2">도소매</option>
+              <option value="3">프랜차이즈</option> */}
               <option value="4">산업체</option>
+              <option value="5">학교</option>
             </TextField>
             <TextField select fullWidth margin="normal" name="meal_type" value={formData.meal_type} onChange={handleChange} SelectProps={{ native: true }}>
               <option value="">선택</option>
@@ -156,8 +159,8 @@ export default function Tables() {
               <option value="4">주간보호</option>
               <option value="5">산업체</option>
             </TextField>
-            <TextField fullWidth margin="normal" label="필수인원" name="account_rqd_member" value={formData.account_rqd_member} onChange={handleChange} />
-            <TextField fullWidth margin="normal" label="현재인원" name="account_headcount" value={formData.account_headcount} onChange={handleChange} />
+            <TextField fullWidth margin="normal" label="필수인원" name="account_rqd_member" value={formData.account_rqd_member} onChange={handleChange} InputLabelProps={{style: { fontSize: "0.7rem" }, }}/>
+            <TextField fullWidth margin="normal" label="현재인원" name="account_headcount" value={formData.account_headcount} onChange={handleChange} InputLabelProps={{style: { fontSize: "0.7rem" }, }}/>
           </Box>
           <Box mt={3} display="flex" justifyContent="flex-end" gap={1}>
             <Button variant="contained" onClick={handleModalClose} sx={{ bgcolor: "#e8a500", color: "#ffffff", "&:hover": { bgcolor: "#e8a500", color: "#ffffff" } }}>취소</Button>
