@@ -47,6 +47,7 @@ import PeopleCountingManager from "layouts/headoffice/headofficetab";
 import WeekMenuManager from "layouts/weekmenusheet";
 import EventManager from "layouts/eventsheet";
 // 영업
+import ScheduleManager from "layouts/business/businessschedulesheet";
 import TeleManager from "layouts/business/telemanager";
 import ContractManager from "layouts/accountinfosheet/index";
 // 운영
@@ -132,11 +133,11 @@ const routes = [
     collapse: [
       {
         type: "collapse",
-        name: "미수채권",
-        key: "account_member",
-        icon: <Icon fontSize="small">*</Icon>,
-        route: "/accountmembersheet",
-        component: <AccountMemberSheet />,
+        name: "📅 일정관리",
+        key: "schedule",
+        //icon: <Icon fontSize="small">*</Icon>,
+        route: "/schedule",
+        component: <ScheduleManager />,
         allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
         allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7],   // 🔹 직책권한
         accessMode: "AND",
