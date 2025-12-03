@@ -47,9 +47,9 @@ import PeopleCountingManager from "layouts/headoffice/headofficetab";
 import WeekMenuManager from "layouts/weekmenusheet";
 import EventManager from "layouts/eventsheet";
 // 영업
-import ScheduleManager from "layouts/business/businessschedulesheet";
+import ScheduleManager from "layouts/business/BusinessScheduleSheet";
 import TeleManager from "layouts/business/telemanager";
-import ContractManager from "layouts/accountinfosheet/index";
+import ContractManager from "layouts/accountinfosheet";
 // 운영
 import OperateTab from "layouts/operate/operatetab";
 import AccountIssueManager from "layouts/operate/accountissuesheet";

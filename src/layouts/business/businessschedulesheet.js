@@ -16,7 +16,7 @@ import {
   MenuItem,
 } from "@mui/material";
 
-import useBusinessSchedulesheetData from "./data/businessschedulesheetData";
+import useBusinessSchedulesheetData from "./data/BusinessScheduleSheetData";
 import "./fullcalendar-custom.css";
 import HeaderWithLogout from "components/Common/HeaderWithLogout";
 import LoadingScreen from "../loading/loadingscreen";
@@ -30,7 +30,8 @@ function BusinessScheduleSheet() {
   const [displayDate, setDisplayDate] = useState(dayjs());
   const [events, setEvents] = useState([]);
   const [open, setOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);      // 시작일
+  const [selectedEndDate, setSelectedEndDate] = useState(null); // 종료일
   const [inputValue, setInputValue] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isEventClicked, setIsEventClicked] = useState(false);
@@ -124,8 +125,8 @@ function BusinessScheduleSheet() {
   useEffect(() => {
     const mapped = eventListRows
       .filter((item) => {
-        // 🔸 schedule_date 기준으로 필터
-        const date = dayjs(item.schedule_date);
+        // start_date 기준으로 월 필터 (원하면 기간으로 더 정교하게도 가능)
+        const date = dayjs(item.start_date);
         return date.year() === currentYear && date.month() + 1 === currentMonth;
       })
       .map((item) => {
@@ -136,8 +137,11 @@ function BusinessScheduleSheet() {
           idx: item.idx,
           user_id: item.user_id,
           title: item.content || "내용 없음",
-          start: dayjs(item.schedule_date).format("YYYY-MM-DD"),
-          end: dayjs(item.schedule_date).format("YYYY-MM-DD"),
+          start: dayjs(item.start_date).format("YYYY-MM-DD"),
+          // 🔥 FullCalendar allDay 이벤트는 end가 '다음날 0시'라 +1일 해주는 게 보통
+          end: dayjs(item.end_date || item.start_date)
+            .add(1, "day")
+            .format("YYYY-MM-DD"),
           backgroundColor: bgColor,
           textColor: "#fff",
           extendedProps: { ...item, isCanceled },
@@ -154,14 +158,32 @@ function BusinessScheduleSheet() {
       return;
     }
 
-    setSelectedDate(arg.dateStr);
+    setSelectedDate(arg.dateStr);       // 시작일
+    setSelectedEndDate(arg.dateStr);    // 종료일 = 시작일 (1일짜리)
+
     setSelectedEvent(null);
     setInputValue("");
     setSelectedType("1");
     setSelectedMemberId("");
 
     await fetchBusinessMemberList();
+    setOpen(true);
+  };
 
+  // ✅ 여러 날짜 드래그로 기간 선택
+  const handleSelectRange = async (info) => {
+    // FullCalendar의 end는 'exclusive'라서 -1일 해야 실제 마지막 날짜
+    const start = dayjs(info.start).format("YYYY-MM-DD");
+    const end = dayjs(info.end).subtract(1, "day").format("YYYY-MM-DD");
+
+    setSelectedDate(start);
+    setSelectedEndDate(end);
+    setSelectedEvent(null);
+    setInputValue("");
+    setSelectedType("1");
+    setSelectedMemberId("");
+
+    await fetchBusinessMemberList();
     setOpen(true);
   };
 
@@ -170,13 +192,29 @@ function BusinessScheduleSheet() {
     setIsEventClicked(true);
     const clickedEvent = info.event;
 
-    setSelectedDate(dayjs(clickedEvent.start).format("YYYY-MM-DD"));
+    // ⬇ 우선 extendedProps에 있는 값 우선 사용
+    let start = clickedEvent.extendedProps?.start_date;
+    let end = clickedEvent.extendedProps?.end_date;
+
+    // 만약 과거 데이터 등으로 start_date/end_date가 없다면 fallback
+    if (!start) {
+      start = dayjs(clickedEvent.start).format("YYYY-MM-DD");
+    }
+    if (!end) {
+      if (clickedEvent.end) {
+        // FullCalendar allDay는 end가 '다음날 0시'라 -1일
+        end = dayjs(clickedEvent.end).subtract(1, "day").format("YYYY-MM-DD");
+      } else {
+        end = start;
+      }
+    }
+
+    setSelectedDate(start);
+    setSelectedEndDate(end);
     setSelectedEvent(clickedEvent);
     setInputValue(clickedEvent.title);
     setSelectedType(clickedEvent.extendedProps?.type?.toString() || "1");
-    setSelectedMemberId(
-      clickedEvent.extendedProps?.user_id?.toString() || ""
-    );
+    setSelectedMemberId(clickedEvent.extendedProps?.user_id?.toString() || "");
 
     await fetchBusinessMemberList();
     setOpen(true);
@@ -203,7 +241,9 @@ function BusinessScheduleSheet() {
     const newEvent = {
       idx: selectedEvent?.extendedProps?.idx || null,
       content: inputValue,
-      schedule_date: selectedDate,
+      // 🔥 기간 정보
+      start_date: selectedDate,
+      end_date: selectedEndDate || selectedDate,
       type: selectedType,
       user_id: selectedMemberId,
       del_yn: "N",
@@ -252,7 +292,9 @@ function BusinessScheduleSheet() {
       const cancelEvent = {
         idx: selectedEvent?.extendedProps?.idx || null,
         content: inputValue,
-        schedule_date: selectedDate,
+        // ✅ 기간 정보 유지
+        start_date: selectedDate,
+        end_date: selectedEndDate || selectedDate,
         type: selectedType,
         user_id: selectedMemberId,
         del_yn: "Y",
@@ -300,7 +342,9 @@ function BusinessScheduleSheet() {
       const restoreEvent = {
         idx: selectedEvent?.extendedProps?.idx || null,
         content: inputValue,
-        schedule_date: selectedDate,
+        // ✅ 기간 정보 유지
+        start_date: selectedDate,
+        end_date: selectedEndDate || selectedDate,
         type: selectedType,
         user_id: selectedMemberId,
         del_yn: "N", // 🔥 복원 → 다시 활성화
@@ -395,8 +439,11 @@ function BusinessScheduleSheet() {
         headerToolbar={false}
         initialDate={displayDate.toDate()}
         events={events}
-        dateClick={handleDateClick}
+        dateClick={handleDateClick}   // 하루 클릭
         eventClick={handleEventClick}
+        selectable={true}             // 🔥 기간 선택 가능
+        selectMirror={true}
+        select={handleSelectRange}    // 🔥 드래그로 선택 시 호출
         eventColor="#F2921D"
         eventTextColor="#fff"
         height="80vh"
@@ -458,7 +505,12 @@ function BusinessScheduleSheet() {
         >
           {/* 상단 날짜 */}
           <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
-            {dayjs(selectedDate).format("YYYY년 MM월 DD일")}
+            {selectedDate &&
+              (selectedEndDate && selectedEndDate !== selectedDate
+                ? `${dayjs(selectedDate).format("YYYY년 MM월 DD일")} ~ ${dayjs(
+                    selectedEndDate
+                  ).format("YYYY년 MM월 DD일")}`
+                : dayjs(selectedDate).format("YYYY년 MM월 DD일"))}
           </Typography>
 
           {/* 행사 종류 + 담당자 선택 (한 줄 정렬) */}

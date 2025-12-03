@@ -15,7 +15,7 @@ import MDInput from "components/MDInput";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import HeaderWithLogout from "components/Common/HeaderWithLogout";
-import useAccountInfosheetData from "./data/accountinfosheetData";
+import useAccountInfosheetData from "./data/AccountInfoSheetData";
 import PropTypes from "prop-types";
 import Swal from "sweetalert2";
 import api from "api/api";

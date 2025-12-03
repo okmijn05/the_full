@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 
 // ✅ 커스텀 훅 import
-import useWeekMenusheetData from "./data/weekmenusheetData";
+import useWeekMenusheetData from "./data/WeekMenuSheetData";
 import "./fullcalendar-custom.css";
 import HeaderWithLogout from "components/Common/HeaderWithLogout";
 import LoadingScreen from "../loading/loadingscreen";

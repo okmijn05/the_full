@@ -10,7 +10,7 @@ import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 import LoadingScreen from "../loading/loadingscreen";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
-import useAccountManagermentTableData, { parseNumber, formatNumber } from "./data/accountmanagermenttableData";
+import useAccountManagermentTableData, { parseNumber, formatNumber } from "./data/AccountManagermentTableData";
 import Swal from "sweetalert2";
 import api from "api/api";
 import PropTypes from "prop-types";

@@ -10,7 +10,7 @@ import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
-import usePropertiessheetData, { parseNumber, formatNumber } from "./data/propertiessheetData";
+import usePropertiessheetData, { parseNumber, formatNumber } from "./data/PropertiesSheetData";
 
 function PropertiesSheet() {
   const { activeRows, setActiveRows, saveData } = usePropertiessheetData();

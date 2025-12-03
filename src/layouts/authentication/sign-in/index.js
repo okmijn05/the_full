@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "api/api";
 
 // react-router-dom components
@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 // @mui material components
 import Card from "@mui/material/Card";
+import Switch from "@mui/material/Switch";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
@@ -28,12 +29,23 @@ function Basic() {
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = () => {
+  // ✅ 로그인 처리 함수 (직접 입력 / 자동 로그인 둘 다 사용)
+  const handleLogin = (id = userId, pw = password) => {
+    // 아이디/비밀번호 빈값 체크 (옵션)
+    if (!id || !pw) {
+      Swal.fire({
+        title: "알림",
+        text: "ID와 PASSWORD를 입력해 주세요.",
+        icon: "warning",
+        confirmButtonText: "확인",
+      });
+      return;
+    }
+
     api
-      .post("/User/Login",
-      {
-        userId: userId,
-        password: password
+      .post("/User/Login", {
+        userId: id,
+        password: pw,
       })
       .then((response) => {
         if (response.data.code == "400") {
@@ -43,12 +55,19 @@ function Basic() {
             icon: "error",
             confirmButtonColor: "#d33",
             confirmButtonText: "확인",
-          }).then((result) => {
-            if (result.isConfirmed) {
-              return;
-            }
           });
         } else {
+          // 🔐 자동로그인 체크 여부에 따라 localStorage에 계정정보 저장
+          if (rememberMe) {
+            localStorage.setItem("autoLogin", "true");
+            localStorage.setItem("autoLoginUserId", id);
+            localStorage.setItem("autoLoginPassword", pw);
+          } else {
+            localStorage.removeItem("autoLogin");
+            localStorage.removeItem("autoLoginUserId");
+            localStorage.removeItem("autoLoginPassword");
+          }
+
           // 로그인 정보를 저장.
           localStorage.setItem("user_id", response.data.user_id);
           localStorage.setItem("user_type", response.data.user_type);
@@ -57,9 +76,9 @@ function Basic() {
           localStorage.setItem("account_id", response.data.account_id);
 
           const department = response.data.department;
-          
-          if (department == '7') {
-            navigate("/fieldboard/fieldbordtab");  
+
+          if (department == "7") {
+            navigate("/fieldboard/fieldbordtab");
           } else {
             navigate("/Dashboard");
           }
@@ -70,15 +89,36 @@ function Basic() {
       });
   };
 
+  // ✅ 브라우저에 저장된 자동로그인 정보가 있으면 자동 로그인 시도
+  useEffect(() => {
+    const savedAutoLogin = localStorage.getItem("autoLogin") === "true";
+    const savedUserId = localStorage.getItem("autoLoginUserId");
+    const savedPassword = localStorage.getItem("autoLoginPassword");
+
+    if (savedAutoLogin && savedUserId && savedPassword) {
+      setRememberMe(true);
+      setUserId(savedUserId);
+      setPassword(savedPassword);
+      // 바로 자동 로그인 시도
+      handleLogin(savedUserId, savedPassword);
+    }
+  }, []); // 처음 한번만 실행
+
+  // ✅ 엔터키로 로그인되도록 form onSubmit 처리
+  const handleSubmit = (e) => {
+    e.preventDefault(); // 새로고침 방지
+    handleLogin();
+  };
+
   return (
     <BasicLayout>
       <Card>
         <MDBox pt={6} pb={3} px={6} textAlign="center">
-          <img src={bgImage2} />
-          <MDBox component="form" role="form">
+          <img src={bgImage2} alt="logo" />
+          <MDBox component="form" role="form" onSubmit={handleSubmit}>
             <MDBox mb={2}>
               <MDInput
-                type="email"
+                type="text"      // ID 입력이므로 text 타입 사용
                 label="ID"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
@@ -94,7 +134,9 @@ function Basic() {
                 fullWidth
               />
             </MDBox>
-            {/* <MDBox display="flex" alignItems="center" ml={-1}>
+
+            {/* 자동 로그인 스위치 */}
+            <MDBox display="flex" alignItems="center" ml={-1} mb={1}>
               <Switch checked={rememberMe} onChange={handleSetRememberMe} />
               <MDTypography
                 variant="button"
@@ -103,14 +145,21 @@ function Basic() {
                 onClick={handleSetRememberMe}
                 sx={{ cursor: "pointer", userSelect: "none", ml: -1 }}
               >
-                &nbsp;&nbsp;Remember me
+                &nbsp;&nbsp;자동 로그인
               </MDTypography>
-            </MDBox> */}
+            </MDBox>
+
             <MDBox mt={4} mb={1}>
-              <MDButton variant="gradient" color="info" fullWidth onClick={handleLogin}>
+              <MDButton
+                type="submit"              // 🔥 엔터/클릭 모두 submit로 처리
+                variant="gradient"
+                color="info"
+                fullWidth
+              >
                 Log In
               </MDButton>
             </MDBox>
+
             <MDBox mt={3} mb={1} textAlign="center">
               <MDTypography variant="button" color="text">
                 계정이 없으신가요?{" "}

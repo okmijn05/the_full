@@ -9,7 +9,7 @@ import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 import LoadingScreen from "../loading/loadingscreen";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
-import useTallysheetData, { parseNumber, formatNumber } from "./data/tallysheetData";
+import useTallysheetData, { parseNumber, formatNumber } from "./data/TallySheetData";
 import Swal from "sweetalert2";
 import api from "api/api";
 import PropTypes from "prop-types";

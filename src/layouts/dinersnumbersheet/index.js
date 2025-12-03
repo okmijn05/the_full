@@ -8,7 +8,7 @@ import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
-import useDinersNumbersheetData, { parseNumber, formatNumber } from "./data/dinersnumbersheetData";
+import useDinersNumbersheetData, { parseNumber, formatNumber } from "./data/DinersNumberSheetData";
 import LoadingScreen from "../loading/loadingscreen";
 import Swal from "sweetalert2";
 import api from "api/api";

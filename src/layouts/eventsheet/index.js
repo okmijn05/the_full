@@ -17,7 +17,7 @@ import {
 } from "@mui/material";
 
 // ✅ 커스텀 훅 import
-import useEventsheetData from "./data/eventsheetData";
+import useEventsheetData from "./data/EventSheetData";
 import "./fullcalendar-custom.css";
 import HeaderWithLogout from "components/Common/HeaderWithLogout";
 import LoadingScreen from "../loading/loadingscreen";

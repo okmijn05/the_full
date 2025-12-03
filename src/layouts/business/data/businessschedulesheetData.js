@@ -20,7 +20,8 @@ export default function useBusinessSchedulesheetData(currentYear, currentMonth) 
 
       const rows = (res.data || []).map((item) => ({
         idx: item.idx,
-        schedule_date: item.schedule_date,
+        start_date: item.start_date,
+        end_date: item.end_date,
         content: item.content || "",
         type: item.type,
         update_dt: item.update_dt,
