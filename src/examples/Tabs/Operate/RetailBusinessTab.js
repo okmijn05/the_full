@@ -263,14 +263,6 @@ function RetailBusinessTab() {
           });
 
           if (res.data.code === 200) {
-            Swal.fire({
-              title: "성공",
-              text: "저장되었습니다.",
-              icon: "success",
-              confirmButtonColor: "#d33",
-              confirmButtonText: "확인",
-            });
-    
             return res.data.image_path;
           }
         } catch (err) {
