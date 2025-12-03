@@ -15,7 +15,6 @@ import Swal from "sweetalert2";
 import api from "api/api";
 
 function TeleManagerTab() {
-  
   dayjs.extend(isSameOrAfter);
   dayjs.extend(isSameOrBefore);
 
@@ -38,6 +37,15 @@ function TeleManagerTab() {
   );
 
   const [editedRows, setEditedRows] = useState([]);
+
+  // 🔹 드래그 선택 상태
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState(null); // { rowIdx, date }
+  const [selectionEnd, setSelectionEnd] = useState(null); // { rowIdx, date }
+
+  // 🔹 드래그 범위에 일괄로 넣을 타입/메모
+  const [bulkActType, setBulkActType] = useState(1); // 기본: 영업관리소통
+  const [bulkMemo, setBulkMemo] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -185,6 +193,82 @@ function TeleManagerTab() {
     3: "salmon",
   };
 
+  // 🔹 현재 셀이 선택 영역 안에 있는지 확인
+  const isCellInSelection = (rowIdx, date) => {
+    if (!selectionStart || !selectionEnd) return false;
+    if (selectionStart.rowIdx !== rowIdx) return false; // 한 행 기준
+
+    const start = dayjs(selectionStart.date);
+    const end = dayjs(selectionEnd.date);
+    const current = dayjs(date);
+
+    const min = start.isBefore(end) ? start : end;
+    const max = start.isAfter(end) ? start : end;
+
+    return (
+      current.isSameOrAfter(min, "day") &&
+      current.isSameOrBefore(max, "day")
+    );
+  };
+
+  // 🔹 선택된 범위에 일괄 적용 (버튼 눌렀을 때만 실행)
+  const handleApplySelection = () => {
+    if (!selectionStart || !selectionEnd) {
+      Swal.fire("알림", "선택된 날짜 범위가 없습니다.", "info");
+      return;
+    }
+
+    const rowIdx = selectionStart.rowIdx;
+    if (rowIdx !== selectionEnd.rowIdx) {
+      Swal.fire("알림", "한 업장(행)에서만 범위 적용이 가능합니다.", "info");
+      return;
+    }
+
+    const start = dayjs(selectionStart.date);
+    const end = dayjs(selectionEnd.date);
+    const min = start.isBefore(end) ? start : end;
+    const max = start.isAfter(end) ? start : end;
+
+    const dates = [];
+    let tmp = min.clone();
+    while (tmp.isSameOrBefore(max, "day")) {
+      dates.push(tmp.format("YYYY-MM-DD"));
+      tmp = tmp.add(1, "day");
+    }
+
+    setEditedRows((prev) =>
+      prev.map((r) => {
+        if (r.idx !== rowIdx) return r;
+
+        const updatedDaily = { ...r.dailyStatus };
+
+        dates.forEach((dt) => {
+          updatedDaily[dt] = {
+            act_type: bulkActType,
+            memo: bulkMemo,
+          };
+        });
+
+        return {
+          ...r,
+          dailyStatus: updatedDaily,
+        };
+      })
+    );
+
+    // 적용 후 선택 해제
+    setSelectionStart(null);
+    setSelectionEnd(null);
+    setIsSelecting(false);
+  };
+
+  // 🔹 선택 해제 전용
+  const handleClearSelection = () => {
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
   // 저장
   const handleSave = async () => {
     const payload = editedRows.flatMap((row) => {
@@ -206,8 +290,7 @@ function TeleManagerTab() {
         { idx: row.idx }
       );
 
-      const changedLeft =
-        Object.keys(leftChanged).length > 1;
+      const changedLeft = Object.keys(leftChanged).length > 1;
 
       const changedDaily = Object.entries(row.dailyStatus || {})
         .filter(([date, val]) => {
@@ -234,11 +317,9 @@ function TeleManagerTab() {
     if (payload.length === 0) return;
 
     try {
-      await api.post(
-        "/Business/BusinessTeleAccountSave",
-        payload,
-        { headers: { "Content-Type": "application/json" } }
-      );
+      await api.post("/Business/BusinessTeleAccountSave", payload, {
+        headers: { "Content-Type": "application/json" },
+      });
       Swal.fire({ icon: "success", title: "저장", text: "저장되었습니다." });
     } catch (err) {
       Swal.fire({
@@ -285,24 +366,71 @@ function TeleManagerTab() {
 
   return (
     <>
-      <MDBox pt={1} pb={1} sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Select value={year} onChange={(e) => setYear(Number(e.target.value))} size="small">
-            {Array.from({ length: 10 }, (_, i) => now.year() - 5 + i).map((y) => (
-              <MenuItem key={y} value={y}>
-                {y}년
-              </MenuItem>
-            ))}
+      <MDBox
+        pt={1}
+        pb={1}
+        sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}
+      >
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          <Select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            size="small"
+          >
+            {Array.from({ length: 10 }, (_, i) => now.year() - 5 + i).map(
+              (y) => (
+                <MenuItem key={y} value={y}>
+                  {y}년
+                </MenuItem>
+              )
+            )}
           </Select>
-
-          {/* <Select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} size="small">
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <MenuItem key={m} value={m}>
-                {m}월
-              </MenuItem>
-            ))}
-          </Select> */}
         </Box>
+
+        {/* 🔹 드래그 범위에 일괄 적용할 타입/메모 설정 */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            alignItems: "center",
+            border: "1px solid #ccc",
+            borderRadius: 1,
+            px: 1,
+            py: 0.5,
+          }}
+        >
+          <span style={{ fontSize: 12 }}>범위 타입</span>
+          <select
+            value={bulkActType}
+            onChange={(e) => setBulkActType(parseInt(e.target.value))}
+            style={{ fontSize: 12 }}
+          >
+            <option value={1}>영업관리소통</option>
+            <option value={2}>미팅완료</option>
+            <option value={3}>집중관리기간</option>
+          </select>
+          <MDInput
+            placeholder="범위 메모"
+            value={bulkMemo}
+            onChange={(e) => setBulkMemo(e.target.value)}
+            sx={{ width: 200 }}
+          />
+          <MDButton
+            variant="outlined"
+            color="secondary"
+            onClick={handleApplySelection}
+          >
+            적용
+          </MDButton>
+          <MDButton
+            variant="outlined"
+            color="error"
+            onClick={handleClearSelection}
+          >
+            선택 해제
+          </MDButton>
+        </Box>
+
         <MDButton variant="gradient" color="success" onClick={handleAddRow}>
           행추가
         </MDButton>
@@ -310,14 +438,23 @@ function TeleManagerTab() {
           저장
         </MDButton>
       </MDBox>
+
       <MDBox pt={0} pb={3} sx={tableSx}>
         <Grid container spacing={3}>
           <Grid item xs={12}>
-            <div onClick={() => setEditingCell(null)}>
+            <div
+              onClick={() => {
+                // 바깥 클릭 시: 셀 편집만 종료, 선택 영역은 유지
+                setEditingCell(null);
+              }}
+            >
               <table>
                 <colgroup>
                   {colWidths.map((w, idx) => (
-                    <col key={idx} style={{ width: w, minWidth: w, maxWidth: w }} />
+                    <col
+                      key={idx}
+                      style={{ width: w, minWidth: w, maxWidth: w }}
+                    />
                   ))}
                 </colgroup>
 
@@ -422,7 +559,9 @@ function TeleManagerTab() {
                       <tr
                         key={row.idx}
                         style={{
-                          backgroundColor: isDisabled ? "#FFF3B0" : "transparent",
+                          backgroundColor: isDisabled
+                            ? "#FFF3B0"
+                            : "transparent",
                           opacity: isDisabled ? 0.8 : 1,
                           pointerEvents: isDisabled ? "none" : "auto",
                         }}
@@ -459,7 +598,9 @@ function TeleManagerTab() {
                                   position: i < 7 ? "sticky" : "static",
                                   left: leftOffset,
                                   zIndex: 2,
-                                  background: isDisabled ? "#FFF3B0" : "#fff",
+                                  background: isDisabled
+                                    ? "#FFF3B0"
+                                    : "#fff",
                                 }}
                               >
                                 {row.idx}
@@ -475,7 +616,9 @@ function TeleManagerTab() {
                                 style={{
                                   position: i < 8 ? "sticky" : "static",
                                   left: leftOffset,
-                                  background: isDisabled ?"#FFF3B0" :"#fff",
+                                  background: isDisabled
+                                    ? "#FFF3B0"
+                                    : "#fff",
                                   zIndex: 2,
                                   color: getCellColor(row, key),
                                   pointerEvents: isDisabled ? "none" : "auto",
@@ -492,10 +635,12 @@ function TeleManagerTab() {
                                   }
                                   style={{
                                     width: "100%",
-                                    background: isDisabled ?"#FFF3B0" : "transparent",
+                                    background: isDisabled
+                                      ? "#FFF3B0"
+                                      : "transparent",
                                     color: "inherit",
                                     cursor: isDisabled ? "default" : "pointer",
-                                    border: "none"
+                                    border: "none",
                                   }}
                                 >
                                   <option value={0}>계약취소</option>
@@ -543,7 +688,9 @@ function TeleManagerTab() {
                         {/* 일자 셀 */}
                         {quarterMonths.map((m, midx) =>
                           Array.from({ length: m.daysInMonth() }, (_, d) => {
-                            const date = m.date(d + 1).format("YYYY-MM-DD");
+                            const date = m
+                              .date(d + 1)
+                              .format("YYYY-MM-DD");
                             const cellData =
                               row.dailyStatus?.[date] || {
                                 act_type: 0,
@@ -553,17 +700,64 @@ function TeleManagerTab() {
                             const isEditing =
                               editingCell === `${row.idx}-${date}`;
 
+                            const isSelected = isCellInSelection(
+                              row.idx,
+                              date
+                            );
+
                             return (
                               <td
                                 key={`${row.idx}-${midx}-${d}`}
                                 style={{
-                                  backgroundColor: statusColors[cellData.act_type],
+                                  backgroundColor: isSelected
+                                    ? "#FFE082" // 선택 영역 하이라이트
+                                    : statusColors[cellData.act_type],
                                   position: "relative",
                                   cursor: isDisabled ? "default" : "pointer",
                                   opacity: isDisabled ? 0.7 : 1,
                                 }}
-                                onClick={(e) => {
+                                onMouseDown={(e) => {
                                   if (isDisabled) return;
+                                  if (e.button !== 0) return; // 좌클릭만
+
+                                  // 🔸 Shift + 드래그일 때만 범위 선택 시작
+                                  if (!e.shiftKey) {
+                                    return; // 일반 클릭은 아래 onClick에서 편집 모드
+                                  }
+
+                                  e.preventDefault();
+                                  setIsSelecting(true);
+                                  setSelectionStart({
+                                    rowIdx: row.idx,
+                                    date,
+                                  });
+                                  setSelectionEnd({
+                                    rowIdx: row.idx,
+                                    date,
+                                  });
+                                  setEditingCell(null);
+                                }}
+                                onMouseEnter={() => {
+                                  if (!isSelecting) return;
+                                  if (
+                                    !selectionStart ||
+                                    selectionStart.rowIdx !== row.idx
+                                  )
+                                    return;
+                                  setSelectionEnd({
+                                    rowIdx: row.idx,
+                                    date,
+                                  });
+                                }}
+                                onMouseUp={() => {
+                                  // 여기서는 선택만 끝내고 실제 데이터 변경은 적용 버튼에서 처리
+                                  if (!isSelecting) return;
+                                  setIsSelecting(false);
+                                }}
+                                onClick={(e) => {
+                                  // 드래그 선택 중이 아니고, 동시에 disabled도 아닐 때만 개별 편집
+                                  if (isDisabled) return;
+                                  if (isSelecting) return;
                                   e.stopPropagation();
                                   setEditingCell(`${row.idx}-${date}`);
                                 }}
@@ -582,14 +776,20 @@ function TeleManagerTab() {
                                       onChange={(e) =>
                                         handleDailyChange(row.idx, date, {
                                           ...cellData,
-                                          act_type: parseInt(e.target.value),
+                                          act_type: parseInt(
+                                            e.target.value
+                                          ),
                                         })
                                       }
                                     >
                                       <option value={0}>없음</option>
-                                      <option value={1}>영업관리소통</option>
+                                      <option value={1}>
+                                        영업관리소통
+                                      </option>
                                       <option value={2}>미팅완료</option>
-                                      <option value={3}>집중관리기간</option>
+                                      <option value={3}>
+                                        집중관리기간
+                                      </option>
                                     </select>
 
                                     <MDInput
