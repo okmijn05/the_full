@@ -5,7 +5,13 @@ import MDBox from "components/MDBox";
 import MDButton from "components/MDButton";
 import MDInput from "components/MDInput";
 import Tooltip from "@mui/material/Tooltip";
-import { Box, Select, MenuItem } from "@mui/material";
+import {
+  Box,
+  Select,
+  MenuItem,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
 import dayjs from "dayjs";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
@@ -17,6 +23,9 @@ import api from "api/api";
 function TeleManagerTab() {
   dayjs.extend(isSameOrAfter);
   dayjs.extend(isSameOrBefore);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const now = dayjs();
   const [year, setYear] = useState(now.year());
@@ -98,9 +107,12 @@ function TeleManagerTab() {
     }
   }, [teleAccountRows]);
 
+  // ✅ 반응형 테이블 컨테이너 스타일
   const tableSx = {
-    maxHeight: "75vh",
-    overflow: "auto",
+    maxHeight: isMobile ? "60vh" : "75vh",
+    overflowX: "auto",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     whiteSpace: "nowrap",
     "& table": {
       borderCollapse: "collapse",
@@ -113,9 +125,9 @@ function TeleManagerTab() {
       border: "1px solid #686D76",
       textAlign: "center",
       whiteSpace: "nowrap",
-      fontSize: "12px",
-      width: "20px",
-      height: "22px",
+      fontSize: isMobile ? "10px" : "12px",
+      width: isMobile ? "18px" : "20px",
+      height: isMobile ? "20px" : "22px",
       borderCollapse: "collapse",
     },
     "& th": {
@@ -382,16 +394,31 @@ function TeleManagerTab() {
 
   return (
     <>
+      {/* 상단 필터/버튼 영역 - 모바일에서는 줄 바꿈 */}
       <MDBox
         pt={1}
         pb={1}
-        sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          flexWrap: isMobile ? "wrap" : "nowrap",
+          gap: 1,
+        }}
       >
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <Select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
             size="small"
+            sx={{ minWidth: 90 }}
           >
             {Array.from({ length: 10 }, (_, i) => now.year() - 5 + i).map(
               (y) => (
@@ -413,6 +440,7 @@ function TeleManagerTab() {
             borderRadius: 1,
             px: 1,
             py: 0.5,
+            flexWrap: isMobile ? "wrap" : "nowrap",
           }}
         >
           <span style={{ fontSize: 12 }}>범위 타입</span>
@@ -429,12 +457,13 @@ function TeleManagerTab() {
             placeholder="범위 메모"
             value={bulkMemo}
             onChange={(e) => setBulkMemo(e.target.value)}
-            sx={{ width: 200 }}
+            sx={{ width: isMobile ? 150 : 200 }}
           />
           <MDButton
             variant="outlined"
             color="secondary"
             onClick={handleApplySelection}
+            sx={{ fontSize: 11, minWidth: isMobile ? 60 : 80 }}
           >
             적용
           </MDButton>
@@ -442,19 +471,39 @@ function TeleManagerTab() {
             variant="outlined"
             color="error"
             onClick={handleClearSelection}
+            sx={{ fontSize: 11, minWidth: isMobile ? 60 : 80 }}
           >
             선택 해제
           </MDButton>
         </Box>
 
-        <MDButton variant="gradient" color="success" onClick={handleAddRow}>
-          행추가
-        </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
-          저장
-        </MDButton>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            mt: isMobile ? 1 : 0,
+          }}
+        >
+          <MDButton
+            variant="gradient"
+            color="success"
+            onClick={handleAddRow}
+            sx={{ fontSize: 11, minWidth: isMobile ? 60 : undefined }}
+          >
+            행추가
+          </MDButton>
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleSave}
+            sx={{ fontSize: 11, minWidth: isMobile ? 60 : undefined }}
+          >
+            저장
+          </MDButton>
+        </Box>
       </MDBox>
 
+      {/* 테이블 영역 - 가로/세로 스크롤 */}
       <MDBox pt={0} pb={3} sx={tableSx}>
         <Grid container spacing={3}>
           <Grid item xs={12}>
@@ -505,7 +554,6 @@ function TeleManagerTab() {
                           top: 0,
                           background: "#f0f0f0",
                           zIndex: 4,
-                          // 원하면 여기에도 굵은 세로줄 줄 수 있음
                           borderLeft: "2px solid #000",
                           borderRight:
                             idx === quarterMonths.length - 1
@@ -569,7 +617,6 @@ function TeleManagerTab() {
                               background: "#f0f0f0",
                               borderBottom: "1px solid",
                               zIndex: 5,
-                              // 🔹 월 시작/끝 구분선
                               borderLeft: isMonthStart
                                 ? "2px solid #000"
                                 : undefined,
@@ -707,7 +754,7 @@ function TeleManagerTab() {
                                 zIndex: 2,
                                 cursor: isDisabled ? "default" : "text",
                                 background: isDisabled ? "#FFF3B0" : "#fff",
-                                maxWidth: "120px",
+                                maxWidth: isMobile ? "90px" : "120px",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
@@ -757,7 +804,6 @@ function TeleManagerTab() {
                                     ? "default"
                                     : "pointer",
                                   opacity: isDisabled ? 0.7 : 1,
-                                  // 🔹 월 시작/끝 구분선
                                   borderLeft: isMonthStart
                                     ? "2px solid #000"
                                     : undefined,
@@ -799,12 +845,10 @@ function TeleManagerTab() {
                                   });
                                 }}
                                 onMouseUp={() => {
-                                  // 여기서는 선택만 끝내고 실제 데이터 변경은 적용 버튼에서 처리
                                   if (!isSelecting) return;
                                   setIsSelecting(false);
                                 }}
                                 onClick={(e) => {
-                                  // 드래그 선택 중이 아니고, 동시에 disabled도 아닐 때만 개별 편집
                                   if (isDisabled) return;
                                   if (isSelecting) return;
                                   e.stopPropagation();

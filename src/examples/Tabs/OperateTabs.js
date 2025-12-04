@@ -157,7 +157,7 @@ function OperateTabs() {
         }}
       >
         {/* 🔹 공통 헤더 사용 */}
-        <HeaderWithLogout title="📁고객사 관리" />
+        <HeaderWithLogout showMenuButton title="📁고객사 관리" />
         {/* 탭 상단 */}
         <Tabs
           value={tabIndex}

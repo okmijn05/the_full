@@ -170,7 +170,7 @@ export default function BudgetTableTab() {
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="📑 예산관리" />
+      <HeaderWithLogout showMenuButton title="📑 예산관리" />
       <Grid container spacing={6}>
         {/* 거래처 테이블 */}
         <Grid item xs={12}>

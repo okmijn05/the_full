@@ -3,9 +3,12 @@ import React, { useMemo, useState, useEffect } from "react";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
-import { TextField } from "@mui/material";
+import { TextField, useTheme, useMediaQuery } from "@mui/material";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import usePropertiessheetData, { parseNumber, formatNumber } from "./propertiessheetData";
+import usePropertiessheetData, {
+  parseNumber,
+  formatNumber,
+} from "./propertiessheetData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import api from "api/api";
 import Swal from "sweetalert2";
@@ -13,6 +16,9 @@ import dayjs from "dayjs"; // 🟧 감가상각 계산용
 import { API_BASE_URL } from "config";
 
 function PropertySheetTab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const { activeRows, setActiveRows, accountList, loading, fetcPropertyList } =
     usePropertiessheetData();
@@ -172,7 +178,7 @@ function PropertySheetTab() {
     });
 
     setRows(updated);
-  }, [rows.map((r) => `${r.purchase_dt}-${r.purchase_price}`).join(",")]); // purchase_dt, purchase_price 변할 때 재계산
+  }, [rows.map((r) => `${r.purchase_dt}-${r.purchase_price}`).join(",")]);
 
   const handleSave = async () => {
     try {
@@ -184,7 +190,6 @@ function PropertySheetTab() {
           const isChanged =
             row.isNew ||
             Object.keys(updatedRow).some((key) => {
-              //if (key === "depreciation") return false; // 🟧 감가상각은 저장 제외
               const origVal = original[key];
               const curVal = updatedRow[key];
               if (numericCols.includes(key))
@@ -260,48 +265,60 @@ function PropertySheetTab() {
 
   const columns = useMemo(
     () => [
-      { header: "구매일자", accessorKey: "purchase_dt", size: 60 },
-      { header: "구매처", accessorKey: "purchase_name", size: 100 },
-      { header: "품목", accessorKey: "item", size: 150 },
-      { header: "규격", accessorKey: "spec", size: 100 },
-      { header: "수량", accessorKey: "qty", size: 60 },
-      { header: "신규/중고", accessorKey: "type", size: 60 },
-      { header: "구매가격", accessorKey: "purchase_price", size: 80 },
-      { header: "예상감가\n(60개월 기준)", accessorKey: "depreciation", size: 80 }, // 🟧 읽기 전용
-      { header: "제품사진", accessorKey: "item_img", size: 130 },
-      { header: "영수증사진", accessorKey: "receipt_img", size: 130 },
-      { header: "비고", accessorKey: "note", size: 100 },
+      { header: "구매일자", accessorKey: "purchase_dt", size: 80 },
+      { header: "구매처", accessorKey: "purchase_name", size: 120 },
+      { header: "품목", accessorKey: "item", size: 160 },
+      { header: "규격", accessorKey: "spec", size: 110 },
+      { header: "수량", accessorKey: "qty", size: 70 },
+      { header: "신규/중고", accessorKey: "type", size: 80 },
+      { header: "구매가격", accessorKey: "purchase_price", size: 100 },
+      {
+        header: "예상감가\n(60개월 기준)",
+        accessorKey: "depreciation",
+        size: 100,
+      }, // 🟧 읽기 전용
+      { header: "제품사진", accessorKey: "item_img", size: 140 },
+      { header: "영수증사진", accessorKey: "receipt_img", size: 140 },
+      { header: "비고", accessorKey: "note", size: 120 },
     ],
     []
   );
 
+  // ✅ 모바일 대응 테이블 스타일
   const tableSx = {
     flex: 1,
     minHeight: 0,
+    maxHeight: isMobile ? "55vh" : "75vh",
+    overflowX: "auto",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
       minWidth: "100%",
       borderSpacing: 0,
+      tableLayout: "fixed",
     },
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "4px",
+      padding: isMobile ? "2px" : "4px",
       whiteSpace: "pre-wrap",
-      fontSize: "12px",
+      fontSize: isMobile ? "10px" : "12px",
       verticalAlign: "middle",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
     },
     "& th": {
       backgroundColor: "#f0f0f0",
       position: "sticky",
-      top: 130,
+      top: 0, // ✅ 스크롤 박스 안에서 상단 고정
       zIndex: 10,
     },
     "& input[type='date'], & input[type='text']": {
-      fontSize: "12px",
-      padding: "4px",
-      minWidth: "80px",
+      fontSize: isMobile ? "10px" : "12px",
+      padding: isMobile ? "2px 3px" : "4px",
+      minWidth: isMobile ? "70px" : "80px",
       border: "none",
       background: "transparent",
     },
@@ -311,25 +328,31 @@ function PropertySheetTab() {
 
   return (
     <>
-      <MDBox 
-        pt={1} 
-        pb={1} 
-        sx={{ 
-          display: "flex", 
-          justifyContent: "flex-end", 
-          gap: 1 ,
+      {/* 상단 필터/버튼 영역 (모바일 대응) */}
+      <MDBox
+        pt={1}
+        pb={1}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          gap: isMobile ? 1 : 2,
+          flexWrap: isMobile ? "wrap" : "nowrap",
           position: "sticky",
           zIndex: 10,
           top: 78,
           backgroundColor: "#ffffff",
-          }}
+        }}
       >
         <TextField
           select
           size="small"
           value={selectedAccountId}
           onChange={onSearchList}
-          sx={{ minWidth: 150 }}
+          sx={{
+            minWidth: isMobile ? 150 : 200,
+            fontSize: isMobile ? "12px" : "14px",
+          }}
           SelectProps={{ native: true }}
         >
           {(accountList || []).map((row) => (
@@ -338,15 +361,31 @@ function PropertySheetTab() {
             </option>
           ))}
         </TextField>
-        <MDButton color="info" onClick={handleAddRow}>
+        <MDButton
+          color="info"
+          onClick={handleAddRow}
+          sx={{
+            fontSize: isMobile ? "11px" : "13px",
+            minWidth: isMobile ? 70 : 90,
+          }}
+        >
           행 추가
         </MDButton>
-        <MDButton color="info" onClick={handleSave}>
+        <MDButton
+          color="info"
+          onClick={handleSave}
+          sx={{
+            fontSize: isMobile ? "11px" : "13px",
+            minWidth: isMobile ? 70 : 90,
+          }}
+        >
           저장
         </MDButton>
       </MDBox>
 
+      {/* 테이블 영역 */}
       <MDBox pt={1} pb={3} sx={tableSx}>
+        {/* 타이틀 필요하면 주석 해제 */}
         {/* <MDBox
           mx={0}
           mt={-3}
@@ -412,7 +451,7 @@ function PropertySheetTab() {
                             width: "100%",
                             border: "none",
                             background: "transparent",
-                            fontSize: "12px",
+                            fontSize: isMobile ? "10px" : "12px",
                           }}
                         >
                           <option value="0">신규</option>
@@ -449,8 +488,8 @@ function PropertySheetTab() {
                             }
                             alt="preview"
                             style={{
-                              maxWidth: "150px",
-                              maxHeight: "150px",
+                              maxWidth: isMobile ? "100px" : "150px",
+                              maxHeight: isMobile ? "100px" : "150px",
                               cursor: "pointer",
                               display: "block",
                               margin: "6px auto",
@@ -459,7 +498,12 @@ function PropertySheetTab() {
                           />
                         )}
                         <label htmlFor={`upload-${key}-${rowIndex}`}>
-                          <MDButton component="span" size="small" color="info">
+                          <MDButton
+                            component="span"
+                            size="small"
+                            color="info"
+                            sx={{ fontSize: isMobile ? "10px" : "12px" }}
+                          >
                             이미지 업로드
                           </MDButton>
                         </label>
@@ -508,6 +552,7 @@ function PropertySheetTab() {
         </table>
       </MDBox>
 
+      {/* 이미지 전체보기 오버레이 (PC/모바일 공통) */}
       {viewImageSrc && (
         <div
           style={{
@@ -530,30 +575,48 @@ function PropertySheetTab() {
               position: "relative",
               maxWidth: "100%",
               maxHeight: "100%",
+              padding: isMobile ? 8 : 16,
             }}
           >
-            <TransformWrapper initialScale={1} minScale={0.5} maxScale={5} centerOnInit>
-              {({ zoomIn, zoomOut, resetTransform }) => (
+            <TransformWrapper
+              initialScale={1}
+              minScale={0.5}
+              maxScale={5}
+              centerOnInit
+            >
+              {() => (
                 <>
                   <div
                     style={{
                       position: "absolute",
-                      top: 16,
-                      right: 16,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
+                      top: 8,
+                      right: 8,
                       zIndex: 1000,
                     }}
                   >
-                    <button onClick={handleCloseViewer}>X</button>
+                    <button
+                      onClick={handleCloseViewer}
+                      style={{
+                        border: "none",
+                        borderRadius: 4,
+                        padding: "4px 8px",
+                        fontSize: isMobile ? 12 : 14,
+                        cursor: "pointer",
+                      }}
+                    >
+                      닫기
+                    </button>
                   </div>
 
                   <TransformComponent>
                     <img
                       src={encodeURI(viewImageSrc)}
                       alt="미리보기"
-                      style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }}
+                      style={{
+                        maxWidth: "95vw",
+                        maxHeight: "90vh",
+                        borderRadius: 8,
+                      }}
                     />
                   </TransformComponent>
                 </>

@@ -73,7 +73,7 @@ export default function Tables() {
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="🏢 고객사 목록" />
+      <HeaderWithLogout showMenuButton title="🏢 고객사 목록" />
       <Grid container spacing={6}>
         <Grid item xs={12}>
           <Card>

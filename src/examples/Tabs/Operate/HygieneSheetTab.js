@@ -3,31 +3,32 @@ import Grid from "@mui/material/Grid";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
-import { Modal, Box, Typography, Button, TextField, Select, MenuItem } from "@mui/material";
+import { Box, TextField, useTheme, useMediaQuery } from "@mui/material";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import useHygienesheetData  from "./hygienesheetData";
+import useHygienesheetData from "./hygienesheetData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import api from "api/api";
 import Swal from "sweetalert2";
 import { API_BASE_URL } from "config";
 
 function HygieneSheetTab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const [selectedAccountId, setSelectedAccountId] = useState("");
-  const { hygieneListRows, setHygieneListRows, accountList, loading, fetcHygieneList } =
-  useHygienesheetData(); // ✅ 교체
+  const {
+    hygieneListRows,
+    setHygieneListRows,
+    accountList,
+    loading,
+    fetcHygieneList,
+  } = useHygienesheetData();
 
   const [rows, setRows] = useState([]);
-  const [open, setOpen] = useState(false);
   const [originalRows, setOriginalRows] = useState([]);
   const [viewImageSrc, setViewImageSrc] = useState(null);
 
-  // 차량등록 항목
-  const [formData, setFormData] = useState({
-    car_number: "",
-    car_name: "",
-  });
-
-  // 거래처 기본값 설정 + 테이블 데이터 fetch
+  // 거래처 변경 시 데이터 조회
   useEffect(() => {
     if (selectedAccountId) {
       fetcHygieneList(selectedAccountId);
@@ -37,13 +38,14 @@ function HygieneSheetTab() {
     }
   }, [selectedAccountId]);
 
+  // 거래처 기본값: 첫 번째 업장
   useEffect(() => {
     if (accountList.length > 0 && !selectedAccountId) {
-      setSelectedAccountId(accountList[0].account_id);  // ✅ 첫 번째 업장 자동 선택
+      setSelectedAccountId(accountList[0].account_id);
     }
   }, [accountList, selectedAccountId]);
 
-  // carListRows 변경 시 rows 업데이트
+  // 서버 rows → 로컬 rows / originalRows 복사
   useEffect(() => {
     const deepCopy = hygieneListRows.map((row) => ({ ...row }));
     setRows(deepCopy);
@@ -69,64 +71,77 @@ function HygieneSheetTab() {
   const getCellStyle = (rowIndex, key, value) => {
     const original = originalRows[rowIndex]?.[key];
     if (typeof original === "string" && typeof value === "string") {
-      return normalize(original) !== normalize(value) ? { color: "red" } : { color: "black" };
+      return normalize(original) !== normalize(value)
+        ? { color: "red" }
+        : { color: "black" };
     }
     return original !== value ? { color: "red" } : { color: "black" };
   };
 
+  // ✅ 모바일 대응 테이블 스타일
   const tableSx = {
     flex: 1,
     minHeight: 0,
+    maxHeight: isMobile ? "55vh" : "75vh",
+    overflowX: "auto",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
       minWidth: "100%",
       borderSpacing: 0,
+      tableLayout: "fixed",
     },
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "4px",
+      padding: isMobile ? "2px" : "4px",
       whiteSpace: "pre-wrap",
-      fontSize: "12px",
+      fontSize: isMobile ? "10px" : "12px",
       verticalAlign: "middle",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
     },
     "& th": {
       backgroundColor: "#f0f0f0",
       position: "sticky",
-      top: 130,
+      top: 0, // 🔁 스크롤 박스 내부 상단 고정
       zIndex: 10,
     },
     "& input[type='date'], & input[type='text']": {
-      fontSize: "12px",
-      padding: "4px",
-      minWidth: "80px",
+      fontSize: isMobile ? "10px" : "12px",
+      padding: isMobile ? "2px 3px" : "4px",
+      minWidth: isMobile ? "70px" : "80px",
       border: "none",
       background: "transparent",
+      outline: "none",
     },
   };
 
-  // 숫자 입력 시 콤마 적용
+  // 숫자 입력 시 콤마 적용 (현재는 사용 안 하지만, 혹시 추가용으로 남김)
   const handleNumberChange = (rowIndex, key, value) => {
-    // 숫자만 남기기
     let num = value.replace(/,/g, "").replace(/[^\d]/g, "");
-    // 화면용 콤마
     const formatted = num ? Number(num).toLocaleString() : "";
     handleCellChange(rowIndex, key, formatted);
   };
+
   // 행추가
   const handleAddRow = () => {
     const newRow = {
-      account_id: selectedAccountId,  // ✅ 추가
+      account_id: selectedAccountId,
       reg_dt: "",
       problem_note: "",
       mod_dt: "",
       clean_note: "",
       note: "",
+      problem_image: "",
+      clean_image: "",
     };
     setRows((prev) => [...prev, newRow]);
     setOriginalRows((prev) => [...prev, { ...newRow }]);
   };
+
   // 이미지 뷰어
   const handleViewImage = (value) => {
     if (!value) return;
@@ -165,18 +180,18 @@ function HygieneSheetTab() {
         return res.data.image_path;
       }
     } catch (err) {
-       Swal.fire({
-          title: "실패",
-          text: err,
-          icon: "error",
-          confirmButtonColor: "#d33",
-          confirmButtonText: "확인",
-        });
+      Swal.fire({
+        title: "실패",
+        text: err,
+        icon: "error",
+        confirmButtonColor: "#d33",
+        confirmButtonText: "확인",
+      });
 
       throw err;
     }
   };
-  
+
   // 저장
   const handleSave = async () => {
     try {
@@ -197,52 +212,47 @@ function HygieneSheetTab() {
 
           if (!isChanged) return null;
 
-          // 숫자 처리
-          if (updatedRow.service_amt) {
-            updatedRow.service_amt = updatedRow.service_amt.toString().replace(/,/g, "");
-          }
-          if (updatedRow.mileage) {
-            updatedRow.mileage = updatedRow.mileage.toString().replace(/,/g, "");
-          }
-
           // 이미지 처리
           const imageFields = ["problem_image", "clean_image"];
           for (const field of imageFields) {
             if (row[field] && typeof row[field] === "object") {
               let uploadedPath;
               if (field === "problem_image") {
-                uploadedPath = await uploadImage(row[field], row.reg_dt, selectedAccountId);
+                uploadedPath = await uploadImage(
+                  row[field],
+                  row.reg_dt,
+                  selectedAccountId
+                );
               } else if (field === "clean_image") {
-                uploadedPath = await uploadImage(row[field], row.mod_dt, selectedAccountId);
+                uploadedPath = await uploadImage(
+                  row[field],
+                  row.mod_dt,
+                  selectedAccountId
+                );
               }
-              console.log(uploadedPath);
               updatedRow[field] = uploadedPath;
             }
           }
 
-          // ✅ 여기서 account_id 붙임
-          return { ...updatedRow, account_id: selectedAccountId || row.account_id  };
+          return {
+            ...updatedRow,
+            account_id: selectedAccountId || row.account_id,
+          };
         })
       );
 
       const payload = modifiedRows.filter(Boolean);
 
-      console.log(payload);
-
       if (payload.length === 0) {
-        console.log("변경된 내용이 없습니다.");
+        Swal.fire("안내", "변경된 내용이 없습니다.", "info");
         return;
       }
 
-      const response = await api.post(
-        "/Operate/HygieneSave",
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await api.post("/Operate/HygieneSave", payload, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.data.code === 200) {
         Swal.fire({
@@ -269,7 +279,7 @@ function HygieneSheetTab() {
   const columns = useMemo(
     () => [
       { header: "등록일자", accessorKey: "reg_dt", size: 100 },
-      { header: "조치 전 사진", accessorKey: "problem_image", size: 200, },
+      { header: "조치 전 사진", accessorKey: "problem_image", size: 200 },
       { header: "전달 내용", accessorKey: "problem_note", size: 150 },
       { header: "조치일자", accessorKey: "mod_dt", size: 100 },
       { header: "조치 사진", accessorKey: "clean_image", size: 200 },
@@ -283,17 +293,21 @@ function HygieneSheetTab() {
 
   return (
     <>
-      <MDBox 
-        pt={1} 
-        pb={1} 
-        gap={1} 
-        sx={{ display: "flex", 
-          justifyContent: "flex-end",
+      {/* 상단 필터 + 버튼 (모바일 대응) */}
+      <MDBox
+        pt={1}
+        pb={1}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          gap: isMobile ? 1 : 2,
+          flexWrap: isMobile ? "wrap" : "nowrap",
           position: "sticky",
           zIndex: 10,
           top: 78,
           backgroundColor: "#ffffff",
-          }}
+        }}
       >
         {accountList.length > 0 && (
           <TextField
@@ -301,7 +315,10 @@ function HygieneSheetTab() {
             size="small"
             value={selectedAccountId}
             onChange={onSearchList}
-            sx={{ minWidth: 150 }}
+            sx={{
+              minWidth: isMobile ? 150 : 180,
+              fontSize: isMobile ? "12px" : "14px",
+            }}
             SelectProps={{ native: true }}
           >
             {(accountList || []).map((row) => (
@@ -312,33 +329,35 @@ function HygieneSheetTab() {
           </TextField>
         )}
 
-        <MDButton variant="gradient" color="info" onClick={handleAddRow}>
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleAddRow}
+          sx={{
+            fontSize: isMobile ? "11px" : "13px",
+            minWidth: isMobile ? 80 : 100,
+          }}
+        >
           행 추가
         </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleSave}
+          sx={{
+            fontSize: isMobile ? "11px" : "13px",
+            minWidth: isMobile ? 80 : 100,
+          }}
+        >
           저장
         </MDButton>
       </MDBox>
 
+      {/* 테이블 영역 */}
       <MDBox pt={1} pb={3} sx={tableSx}>
-        {/* <MDBox
-          mx={0}
-          mt={-3}
-          py={1}
-          px={2}
-          variant="gradient"
-          bgColor="info"
-          borderRadius="lg"
-          coloredShadow="info"
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-        >
-          <MDTypography variant="h6" color="white">
-            위생관리
-          </MDTypography>
-        </MDBox> */}
-        <Grid container spacing={3}>
+        {/* 필요하면 제목 박스 다시 살려도 됨 */}
+        {/* <MDBox ...>위생관리</MDBox> */}
+        <Grid container spacing={2}>
           <Grid item xs={12}>
             <table>
               <thead>
@@ -354,91 +373,133 @@ function HygieneSheetTab() {
                     {columns.map((col) => {
                       const value = row[col.accessorKey] || "";
 
-                      if (["problem_image", "clean_image"].includes(col.accessorKey)) {
-                      return (
-                        <td
-                          key={col.accessorKey}
-                          style={{
-                            ...getCellStyle(rowIndex, col.accessorKey, value),
-                            width: `${col.size}px`,
-                            textAlign: "center",   // ✅ 이미지 가운데 정렬
-                            verticalAlign: "middle",
-                          }}
-                        >
-                          <input
-                            type="file"
-                            accept="image/*"
-                            id={`upload-${col.accessorKey}-${rowIndex}`}
-                            style={{ display: "none" }}
-                            onChange={(e) => {
-                              const file = e.target.files[0];
-                              handleCellChange(rowIndex, col.accessorKey, file);
+                      // 이미지 컬럼 처리
+                      if (
+                        ["problem_image", "clean_image"].includes(col.accessorKey)
+                      ) {
+                        return (
+                          <td
+                            key={col.accessorKey}
+                            style={{
+                              ...getCellStyle(
+                                rowIndex,
+                                col.accessorKey,
+                                value
+                              ),
+                              width: `${col.size}px`,
+                              textAlign: "center",
+                              verticalAlign: "middle",
                             }}
-                          />
-                          {/* ✅ 바로 썸네일 표시 */}
-                          {value && (
-                            <img
-                              src={
-                                typeof value === "object"
-                                  ? URL.createObjectURL(value)
-                                  : `${API_BASE_URL}${value}`
-                              }
-                              alt="preview"
-                              style={{
-                                display: "block",      // ✅ block 으로 바꿔야 margin auto 적용됨
-                                margin: "6px auto",    // ✅ 가운데 정렬
-                                maxWidth: "200px",
-                                maxHeight: "200px",
-                                objectFit: "cover",
-                                borderRadius: 4,
-                                cursor: "pointer",
+                          >
+                            <input
+                              type="file"
+                              accept="image/*"
+                              id={`upload-${col.accessorKey}-${rowIndex}`}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                handleCellChange(
+                                  rowIndex,
+                                  col.accessorKey,
+                                  file
+                                );
                               }}
-                              onClick={() => handleViewImage(value)} // 필요 없으면 이 줄 삭제
                             />
-                          )}
+                            {value && (
+                              <img
+                                src={
+                                  typeof value === "object"
+                                    ? URL.createObjectURL(value)
+                                    : `${API_BASE_URL}${value}`
+                                }
+                                alt="preview"
+                                style={{
+                                  display: "block",
+                                  margin: "6px auto",
+                                  maxWidth: isMobile ? "120px" : "200px",
+                                  maxHeight: isMobile ? "120px" : "200px",
+                                  objectFit: "cover",
+                                  borderRadius: 4,
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => handleViewImage(value)}
+                              />
+                            )}
 
-                          <label htmlFor={`upload-${col.accessorKey}-${rowIndex}`}>
-                            <MDButton size="small" component="span" color="info">
-                              이미지 업로드
-                            </MDButton>
-                          </label>
-                        </td>
+                            <label
+                              htmlFor={`upload-${col.accessorKey}-${rowIndex}`}
+                            >
+                              <MDButton
+                                size="small"
+                                component="span"
+                                color="info"
+                                sx={{ fontSize: isMobile ? "10px" : "12px" }}
+                              >
+                                이미지 업로드
+                              </MDButton>
+                            </label>
+                          </td>
+                        );
+                      }
+
+                      const isDate = ["reg_dt", "mod_dt"].includes(
+                        col.accessorKey
                       );
-                    }
-
-                      const isDate = ["reg_dt", "mod_dt"].includes(col.accessorKey);
 
                       if (isDate) {
                         return (
                           <td
                             key={col.accessorKey}
                             style={{
-                              ...getCellStyle(rowIndex, col.accessorKey, value),
+                              ...getCellStyle(
+                                rowIndex,
+                                col.accessorKey,
+                                value
+                              ),
                               width: `${col.size}px`,
                             }}
                           >
                             <input
                               type="date"
                               value={value || ""}
-                              onChange={(e) => handleCellChange(rowIndex, col.accessorKey, e.target.value)}
+                              onChange={(e) =>
+                                handleCellChange(
+                                  rowIndex,
+                                  col.accessorKey,
+                                  e.target.value
+                                )
+                              }
                               style={{
-                                ...getCellStyle(rowIndex, col.accessorKey, value),
-                                width: `${col.size}px`,
+                                ...getCellStyle(
+                                  rowIndex,
+                                  col.accessorKey,
+                                  value
+                                ),
+                                width: "100%",
                               }}
                             />
                           </td>
                         );
                       }
+
                       return (
                         <td
                           key={col.accessorKey}
                           contentEditable
                           suppressContentEditableWarning
                           onBlur={(e) =>
-                            handleCellChange(rowIndex, col.accessorKey, e.target.innerText)
+                            handleCellChange(
+                              rowIndex,
+                              col.accessorKey,
+                              e.target.innerText
+                            )
                           }
                           style={{
-                            ...getCellStyle(rowIndex, col.accessorKey, value),
+                            ...getCellStyle(
+                              rowIndex,
+                              col.accessorKey,
+                              value
+                            ),
                             width: `${col.size}px`,
                           }}
                         >
@@ -454,6 +515,7 @@ function HygieneSheetTab() {
         </Grid>
       </MDBox>
 
+      {/* 이미지 뷰어 (PC/모바일 공통, 크기만 조절) */}
       {viewImageSrc && (
         <div
           style={{
@@ -474,35 +536,83 @@ function HygieneSheetTab() {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: "relative",
-              maxWidth: "80%",
-              maxHeight: "80%",
+              maxWidth: isMobile ? "95%" : "80%",
+              maxHeight: isMobile ? "90%" : "80%",
             }}
           >
-            <TransformWrapper initialScale={1} minScale={0.5} maxScale={5} centerOnInit>
+            <TransformWrapper
+              initialScale={1}
+              minScale={0.5}
+              maxScale={5}
+              centerOnInit
+            >
               {({ zoomIn, zoomOut, resetTransform }) => (
                 <>
                   <div
                     style={{
                       position: "absolute",
-                      top: 16,
-                      right: 16,
+                      top: 8,
+                      right: 8,
                       display: "flex",
                       flexDirection: "column",
                       gap: 4,
                       zIndex: 1000,
                     }}
                   >
-                    <button onClick={zoomIn}>+</button>
-                    <button onClick={zoomOut}>-</button>
-                    <button onClick={resetTransform}>⟳</button>
-                    <button onClick={handleCloseViewer}>X</button>
+                    <button
+                      onClick={zoomIn}
+                      style={{
+                        border: "none",
+                        padding: isMobile ? "2px 6px" : "4px 8px",
+                        marginBottom: 2,
+                        cursor: "pointer",
+                      }}
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={zoomOut}
+                      style={{
+                        border: "none",
+                        padding: isMobile ? "2px 6px" : "4px 8px",
+                        marginBottom: 2,
+                        cursor: "pointer",
+                      }}
+                    >
+                      -
+                    </button>
+                    <button
+                      onClick={resetTransform}
+                      style={{
+                        border: "none",
+                        padding: isMobile ? "2px 6px" : "4px 8px",
+                        marginBottom: 2,
+                        cursor: "pointer",
+                      }}
+                    >
+                      ⟳
+                    </button>
+                    <button
+                      onClick={handleCloseViewer}
+                      style={{
+                        border: "none",
+                        padding: isMobile ? "2px 6px" : "4px 8px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      X
+                    </button>
                   </div>
 
                   <TransformComponent>
                     <img
                       src={encodeURI(viewImageSrc)}
                       alt="미리보기"
-                      style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        borderRadius: 8,
+                      }}
                     />
                   </TransformComponent>
                 </>

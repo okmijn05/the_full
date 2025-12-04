@@ -4,7 +4,15 @@ import Grid from "@mui/material/Grid";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
-import { Modal, Box, Typography, Button, TextField } from "@mui/material";
+import {
+  Modal,
+  Box,
+  Typography,
+  Button,
+  TextField,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
 
 import useCookWearManagerData from "./cookWearData";
 import LoadingScreen from "layouts/loading/loadingscreen";
@@ -12,6 +20,9 @@ import api from "api/api";
 import Swal from "sweetalert2";
 
 function CookWearTabStyled() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const [selectedAccount, setSelectedAccount] = useState("");
 
   const {
@@ -93,9 +104,14 @@ function CookWearTabStyled() {
       : { color: "black" };
   };
 
+  // ✅ 모바일 대응 테이블 스타일
   const tableSx = {
     flex: 1,
     minHeight: 0,
+    maxHeight: isMobile ? "40vh" : "60vh",
+    overflowX: "auto",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
       width: "100%",
@@ -105,8 +121,8 @@ function CookWearTabStyled() {
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "4px",
-      fontSize: "12px",
+      padding: isMobile ? "2px" : "4px",
+      fontSize: isMobile ? "10px" : "12px",
       whiteSpace: "pre-wrap",
       verticalAlign: "middle",
       overflow: "hidden",
@@ -119,9 +135,9 @@ function CookWearTabStyled() {
       zIndex: 2,
     },
     "& input[type='date'], & input[type='text'], & select": {
-      fontSize: "12px",
-      padding: "2px",
-      minWidth: "80px",
+      fontSize: isMobile ? "10px" : "12px",
+      padding: isMobile ? "1px" : "2px",
+      minWidth: isMobile ? "60px" : "80px",
       border: "none",
       background: "transparent",
       outline: "none",
@@ -154,13 +170,11 @@ function CookWearTabStyled() {
                     (Number(r.current_qty || 0) +
                       Number(r.new_qty || 0)) -
                     qty,
-                  modified:
-                    //String(originalRows1[i]?.remain_qty ?? "") !==
-                    String(
-                      (Number(r.current_qty || 0) +
-                        Number(r.new_qty || 0)) -
-                        qty
-                    ),
+                  modified: String(
+                    (Number(r.current_qty || 0) +
+                      Number(r.new_qty || 0)) -
+                      qty
+                  ),
                 }
               : r
           )
@@ -183,12 +197,10 @@ function CookWearTabStyled() {
                   remain_qty:
                     (Number(r.current_qty || 0) + qty) -
                     Number(r.out_qty || 0),
-                  modified:
-                    //String(originalRows1[i]?.remain_qty ?? "") !==
-                    String(
-                      (Number(r.current_qty || 0) + qty) -
-                        Number(r.out_qty || 0)
-                    ),
+                  modified: String(
+                    (Number(r.current_qty || 0) + qty) -
+                      Number(r.out_qty || 0)
+                  ),
                 }
               : r
           )
@@ -218,7 +230,7 @@ function CookWearTabStyled() {
         outList: { list: formattedOutList },
         newList: { list: formattedNewList },
       };
-      
+
       const response = await api.post(
         "/Business/CookWearSave",
         payload,
@@ -228,9 +240,8 @@ function CookWearTabStyled() {
           },
         }
       );
-      
-      if (response.data.code === 200) {
 
+      if (response.data.code === 200) {
         Swal.fire({
           title: "저장",
           text: "저장되었습니다.",
@@ -312,11 +323,16 @@ function CookWearTabStyled() {
       getCellStyle(originalRows)(rowIndex, key, value, row);
 
     return (
-      <MDBox pt={4} pb={3} sx={tableSx}>
+      <MDBox
+        pt={isMobile ? 2 : 4}
+        pb={3}
+        sx={tableSx}
+      >
         <MDBox
           mx={0}
-          mt={-3}
-          py={1}
+          mt={-1}
+          mb={1}
+          py={0.8}
           px={2}
           variant="gradient"
           bgColor="info"
@@ -326,11 +342,11 @@ function CookWearTabStyled() {
           justifyContent="space-between"
           alignItems="center"
         >
-          <MDTypography variant="h6" color="white">
+          <MDTypography variant={isMobile ? "button" : "h6"} color="white">
             {title}
           </MDTypography>
         </MDBox>
-        <Grid container spacing={3}>
+        <Grid container spacing={2}>
           <Grid item xs={12}>
             <table>
               <thead>
@@ -471,12 +487,17 @@ function CookWearTabStyled() {
 
   return (
     <>
-      {/* 상단 버튼 */}
+      {/* 상단 버튼 영역 - 모바일에서 줄바꿈 */}
       <MDBox
         pt={1}
         pb={1}
         gap={1}
-        sx={{ display: "flex", justifyContent: "flex-end" }}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          flexWrap: isMobile ? "wrap" : "nowrap",
+        }}
       >
         <MDButton
           variant="gradient"
@@ -484,9 +505,16 @@ function CookWearTabStyled() {
           onClick={() =>
             setCookWearOutRows([
               ...cookWearOutRows,
-              { type: "", account_id: accountList[0]?.account_id ?? "", out_qty: "", out_dt: "", note: "" },
+              {
+                type: "",
+                account_id: accountList[0]?.account_id ?? "",
+                out_qty: "",
+                out_dt: "",
+                note: "",
+              },
             ])
           }
+          sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 90 : undefined }}
         >
           분출현황 행 추가
         </MDButton>
@@ -496,23 +524,40 @@ function CookWearTabStyled() {
           onClick={() =>
             setCookWearNewRows([
               ...cookWearNewRows,
-              { type: "", account_id: accountList[0]?.account_id ?? "", new_qty: "", new_dt: "", note: "" },
+              {
+                type: "",
+                account_id: accountList[0]?.account_id ?? "",
+                new_qty: "",
+                new_dt: "",
+                note: "",
+              },
             ])
           }
+          sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 90 : undefined }}
         >
           주문현황 행 추가
         </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleModalOpen}>
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleModalOpen}
+          sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 80 : undefined }}
+        >
           품목 등록
         </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleSave}
+          sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 70 : undefined }}
+        >
           저장
         </MDButton>
       </MDBox>
 
-      {/* 테이블 */}
+      {/* 테이블들 – 모바일에서 세로로, 데스크탑에서 3열 */}
       <Grid container spacing={2}>
-        <Grid item xs={4}>
+        <Grid item xs={12} md={4}>
           {renderTable(
             "조리복 재고현황",
             cookWearRows,
@@ -522,7 +567,7 @@ function CookWearTabStyled() {
             true
           )}
         </Grid>
-        <Grid item xs={4}>
+        <Grid item xs={12} md={4}>
           {renderTable(
             "조리복 분출현황",
             cookWearOutRows,
@@ -533,7 +578,7 @@ function CookWearTabStyled() {
             "out"
           )}
         </Grid>
-        <Grid item xs={4}>
+        <Grid item xs={12} md={4}>
           {renderTable(
             "조리복 주문현황",
             cookWearNewRows,
@@ -554,11 +599,11 @@ function CookWearTabStyled() {
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: 500,
+            width: isMobile ? "90%" : 500,
             bgcolor: "background.paper",
             borderRadius: 2,
             boxShadow: 24,
-            p: 5,
+            p: isMobile ? 3 : 5,
           }}
         >
           <Typography variant="h6" gutterBottom>
@@ -573,6 +618,7 @@ function CookWearTabStyled() {
             onChange={(e) =>
               setFormData({ ...formData, cook_id: e.target.value })
             }
+            InputLabelProps={{ style: { fontSize: "0.8rem" } }}
           />
           <TextField
             fullWidth
@@ -583,6 +629,7 @@ function CookWearTabStyled() {
             onChange={(e) =>
               setFormData({ ...formData, cook_name: e.target.value })
             }
+            InputLabelProps={{ style: { fontSize: "0.8rem" } }}
           />
           <Box mt={3} display="flex" justifyContent="flex-end" gap={1}>
             <Button

@@ -788,7 +788,7 @@ function AccountInfoSheet() {
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="📋 고객사 상세관리" />
+      <HeaderWithLogout showMenuButton title="📋 고객사 상세관리" />
       {/* 버튼's */}
       <MDBox
         pt={1}

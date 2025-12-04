@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useReactTable, getCoreRowModel, flexRender } from "@tanstack/react-table";
-import { Modal, Box, Select, MenuItem, Typography, Button, TextField } from "@mui/material";
+import { Modal, Box, Select, MenuItem, Typography, Button, TextField, useTheme, useMediaQuery } from "@mui/material";
 import dayjs from "dayjs";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
@@ -9,6 +9,7 @@ import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 import LoadingScreen from "../loading/loadingscreen";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
+import HeaderWithLogout from "components/Common/HeaderWithLogout";
 import useTallysheetData, { parseNumber, formatNumber } from "./data/TallySheetData";
 import Swal from "sweetalert2";
 import api from "api/api";
@@ -85,8 +86,10 @@ function TallySheet() {
   const today = dayjs();
   const [year, setYear] = useState(today.year());
   const [month, setMonth] = useState(today.month() + 1);
-  const [images, setImages] = useState(Array(31).fill(null)); // 1~31일 이미지
+  const [images, setImages] = useState(Array(31).fill(null)); // 1~31일 이미지  
   const [receiptType, setReceiptType] = useState("");
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const {
     dataRows,
@@ -661,42 +664,111 @@ function TallySheet() {
 
   return (
     <DashboardLayout>
-      <MDBox pt={1} pb={1} gap={1} sx={{ display: "flex", justifyContent: "flex-end" }}>
-        <TextField
-          select
-          size="small"
-          value={selectedAccountId}
-          onChange={(e) => setSelectedAccountId(e.target.value)}
-          sx={{ minWidth: 150 }}
-          SelectProps={{ native: true }}
+      <MDBox
+        sx={{
+          position: "sticky",
+          top: 0,             // 상단 고정 위치 (필요하면 56, 64 등으로 조절 가능)
+          zIndex: 10,
+          backgroundColor: "#ffffff",
+          borderBottom: "1px solid #eee",
+        }}
+      >
+      {/* 🔹 공통 헤더 사용 */}
+      <HeaderWithLogout showMenuButton title="🧮 집계표" />
+        <MDBox
+          pt={1}
+          pb={1}
+          sx={{
+            display: "flex",
+            flexWrap: isMobile ? "wrap" : "nowrap",
+            justifyContent: isMobile ? "flex-start" : "flex-end",
+            alignItems: "center",
+            gap: isMobile ? 1 : 2,
+          }}
         >
-          {(accountList || []).map((row) => (
-            <option key={row.account_id} value={row.account_id}>
-              {row.account_name}
-            </option>
-          ))}
-        </TextField>
-        <Select value={year} onChange={(e) => setYear(e.target.value)} size="small">
-          {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
-            <MenuItem key={y} value={y}>{y}년</MenuItem>
-          ))}
-        </Select>
-        <Select value={month} onChange={(e) => setMonth(e.target.value)} size="small">
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <MenuItem key={m} value={m}>{m}월</MenuItem>
-          ))}
-        </Select>
-        <MDButton variant="gradient" color="info" onClick={handleModalOpen2}>
-          거래처 등록
-        </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleModalOpen}>
-          거래처 연결
-        </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
-          저장
-        </MDButton>
-      </MDBox>
+          <TextField
+            select
+            size="small"
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            sx={{
+              minWidth: isMobile ? 140 : 150,
+            }}
+            SelectProps={{ native: true }}
+          >
+            {(accountList || []).map((row) => (
+              <option key={row.account_id} value={row.account_id}>
+                {row.account_name}
+              </option>
+            ))}
+          </TextField>
 
+          <Select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            size="small"
+            sx={{ minWidth: isMobile ? 90 : 110, fontSize: isMobile ? "12px" : "13px" }}
+          >
+            {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
+              <MenuItem key={y} value={y}>
+                {y}년
+              </MenuItem>
+            ))}
+          </Select>
+
+          <Select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            size="small"
+            sx={{ minWidth: isMobile ? 80 : 100, fontSize: isMobile ? "12px" : "13px" }}
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <MenuItem key={m} value={m}>
+                {m}월
+              </MenuItem>
+            ))}
+          </Select>
+
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleModalOpen2}
+            sx={{
+              fontSize: isMobile ? "11px" : "13px",
+              minWidth: isMobile ? 90 : 110,
+              px: isMobile ? 1 : 2,
+            }}
+          >
+            거래처 등록
+          </MDButton>
+
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleModalOpen}
+            sx={{
+              fontSize: isMobile ? "11px" : "13px",
+              minWidth: isMobile ? 90 : 110,
+              px: isMobile ? 1 : 2,
+            }}
+          >
+            거래처 연결
+          </MDButton>
+
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleSave}
+            sx={{
+              fontSize: isMobile ? "11px" : "13px",
+              minWidth: isMobile ? 70 : 90,
+              px: isMobile ? 1 : 2,
+            }}
+          >
+            저장
+          </MDButton>
+        </MDBox>
+      </MDBox>
       {/* 현재월 테이블 */}
       <MDBox pt={3} pb={3}>
         <Grid container spacing={6}>

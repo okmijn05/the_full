@@ -39,18 +39,25 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
   else if (whiteSidenav && darkMode) textColor = "inherit";
 
   const closeSidenav = () => setMiniSidenav(dispatch, true);
-
+  
   useEffect(() => {
     function handleMiniSidenav() {
-      setMiniSidenav(dispatch, window.innerWidth < 1200);
-      setTransparentSidenav(dispatch, window.innerWidth < 1200 ? false : transparentSidenav);
-      setWhiteSidenav(dispatch, window.innerWidth < 1200 ? false : whiteSidenav);
+      const isSmallScreen = window.innerWidth < 1200;
+
+      // 화면이 작으면 mini 모드, 크면 full 모드
+      setMiniSidenav(dispatch, isSmallScreen);
+
+      // 화면이 작을 때는 투명/화이트 옵션을 끄고,
+      // 클 때만 켜도록 (필요에 따라 조정 가능)
+      setTransparentSidenav(dispatch, !isSmallScreen ? false : transparentSidenav);
+      setWhiteSidenav(dispatch, !isSmallScreen ? false : whiteSidenav);
     }
 
     window.addEventListener("resize", handleMiniSidenav);
-    handleMiniSidenav();
+    handleMiniSidenav(); // 처음 렌더링 시 한 번 실행
+
     return () => window.removeEventListener("resize", handleMiniSidenav);
-  }, [dispatch, location, transparentSidenav, whiteSidenav]);
+  }, [dispatch]);
 
   const renderRoutes = (routesArray) =>
     routesArray.map(({ type, name, icon, key, href, route, collapse }) => {

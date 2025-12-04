@@ -5,10 +5,20 @@ import Icon from "@mui/material/Icon";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import { useNavigate } from "react-router-dom";
-import PropTypes from "prop-types";   // ✅ 추가
+import PropTypes from "prop-types";
 
-function HeaderWithLogout({ title, rightContent }) {
+// ✅ 사이드네브 컨트롤 import
+import {
+  useMaterialUIController,
+  setMiniSidenav,
+} from "context";
+
+function HeaderWithLogout({ title, rightContent, showMenuButton }) {
   const navigate = useNavigate();
+
+  // ✅ 사이드 메뉴 상태/디스패치
+  const [controller, dispatch] = useMaterialUIController();
+  const { miniSidenav } = controller;
 
   const handleLogout = () => {
     localStorage.removeItem("user_id");
@@ -20,6 +30,11 @@ function HeaderWithLogout({ title, rightContent }) {
     navigate("/authentication/sign-in");
   };
 
+  // ✅ 햄버거 버튼 클릭 시 사이드 메뉴 토글
+  const handleToggleSidenav = () => {
+    setMiniSidenav(dispatch, !miniSidenav);
+  };
+
   return (
     <MDBox
       display="flex"
@@ -29,18 +44,43 @@ function HeaderWithLogout({ title, rightContent }) {
       pt={0.5}
       pb={0.5}
       sx={{
-        backgroundColor: "#77BEF0",   // ✅ 원하는 색
-        borderRadius: "10px 10px 10px 10px",  // ✅ 위쪽만 둥글게 (좌상, 우상, 우하, 좌하)
+        backgroundColor: "#77BEF0",
+        borderRadius: "10px 10px 10px 10px",
       }}
     >
-      {/* 왼쪽 타이틀 */}
-      <MDTypography variant="button" fontWeight="bold" fontSize="16px" style={{ color: "white" }}>
-        {title}
-      </MDTypography>
+      {/* 왼쪽: 메뉴 버튼 + 타이틀 */}
+      <MDBox display="flex" alignItems="center" gap={1}>
+        {showMenuButton && (
+          <IconButton
+            size="small"
+            onClick={handleToggleSidenav}
+            sx={{
+              color: "white",
+              border: "2px solid rgba(255,255,255,0.6)",
+              borderRadius: "8px",
+              padding: "4px",
+            }}
+          >
+            {/* miniSidenav 여부에 따라 아이콘 변경 (선택사항) */}
+            <Icon fontSize="small">
+              {miniSidenav ? "menu_open" : "menu"}
+            </Icon>
+          </IconButton>
+        )}
 
-      {/* 오른쪽 영역: 화면마다 다른 버튼들 + 공통 로그아웃 */}
+        <MDTypography
+          variant="button"
+          fontWeight="bold"
+          fontSize="16px"
+          style={{ color: "white" }}
+        >
+          {title}
+        </MDTypography>
+      </MDBox>
+
+      {/* 오른쪽: 화면별 버튼들 + 공통 로그아웃 */}
       <MDBox display="flex" alignItems="center" gap={0.5}>
-        {rightContent /* 필요하면 오른쪽에 다른 버튼들 넣기 */}
+        {rightContent}
         <Tooltip title="로그아웃">
           <IconButton
             size="small"
@@ -49,7 +89,7 @@ function HeaderWithLogout({ title, rightContent }) {
               border: "2px solid #FFFDF6",
               borderRadius: "50%",
               padding: "4px",
-              color: "#FFFDF6"
+              color: "#FFFDF6",
             }}
           >
             <Icon fontSize="small">logout</Icon>
@@ -60,10 +100,15 @@ function HeaderWithLogout({ title, rightContent }) {
   );
 }
 
-/* ✅ 여기서 props 타입 정의 */
+/* ✅ props 타입 정의 */
 HeaderWithLogout.propTypes = {
-  title: PropTypes.string,      // 문자열 제목
-  rightContent: PropTypes.node, // 리액트 노드(버튼들, 아이콘 등)
+  title: PropTypes.string,
+  rightContent: PropTypes.node,
+  showMenuButton: PropTypes.bool, // 👈 추가
+};
+
+HeaderWithLogout.defaultProps = {
+  showMenuButton: false,
 };
 
 export default HeaderWithLogout;

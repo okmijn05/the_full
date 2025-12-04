@@ -72,7 +72,7 @@ function FieldBoardTabs() {
       >
         {/* 상단 헤더 영역 (타이틀 + 로그아웃) */}
         {/* 🔹 공통 헤더 사용 */}
-        <HeaderWithLogout title="현장관리" />
+        <HeaderWithLogout showMenuButton title="현장관리" />
 
         {/* 탭 상단 */}
         <Tabs

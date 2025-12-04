@@ -9,6 +9,8 @@ import {
   TextField,
   MenuItem,
   Select,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import dayjs from "dayjs";
 import MDBox from "components/MDBox";
@@ -21,12 +23,15 @@ import api from "api/api";
 import useDeadlineBalanceData, { parseNumber, formatNumber } from "./deadlineBalanceData";
 
 export default function DeadlineBalanceTab() {
-
   const today = dayjs();
   const [year, setYear] = useState(today.year());
   const [month, setMonth] = useState(today.month() + 1);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editableRows, setEditableRows] = useState([]);
+
+  // ✅ 반응형용 훅
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md")); // md 이하를 모바일로
 
   // ✅ 마지막 선택 고객 기억용 ref
   const lastSelectedAccountId = useRef(null);
@@ -53,7 +58,7 @@ export default function DeadlineBalanceTab() {
     difference_price: "",
     note: "",
     balance_price: "",
-    before_price: ""
+    before_price: "",
   });
 
   // ✅ balanceRows가 갱신된 뒤 자동으로 다시 선택
@@ -89,6 +94,7 @@ export default function DeadlineBalanceTab() {
 
   const handleSelectCustomer = (row) => {
     setSelectedCustomer(row);
+    lastSelectedAccountId.current = row.account_id;
     fetchDepositHistoryList(row.account_id, year);
   };
 
@@ -104,9 +110,12 @@ export default function DeadlineBalanceTab() {
           const numericValue = parseNumber(rawValue);
           updated[key] = numericValue;
 
-          const livingDiff = parseNumber(updated.living_cost) - parseNumber(original.living_cost);
-          const basicDiff = parseNumber(updated.basic_cost) - parseNumber(original.basic_cost);
-          const employDiff = parseNumber(updated.employ_cost) - parseNumber(original.employ_cost);
+          const livingDiff =
+            parseNumber(updated.living_cost) - parseNumber(original.living_cost);
+          const basicDiff =
+            parseNumber(updated.basic_cost) - parseNumber(original.basic_cost);
+          const employDiff =
+            parseNumber(updated.employ_cost) - parseNumber(original.employ_cost);
 
           updated.balance_price =
             parseNumber(original.balance_price) + livingDiff + basicDiff + employDiff;
@@ -171,8 +180,6 @@ export default function DeadlineBalanceTab() {
       return;
     }
 
-    console.log("📊 최신 balance_price:", latestCustomer.balance_price);
-
     setDepositForm({
       ...depositForm,
       customer_name: latestCustomer.account_name,
@@ -186,8 +193,8 @@ export default function DeadlineBalanceTab() {
 
   const handleDepositModalClose = () => {
     setDepositForm({
-      customer_name: selectedCustomer.account_name,
-      account_id: selectedCustomer.account_id,
+      customer_name: selectedCustomer?.account_name || "",
+      account_id: selectedCustomer?.account_id || "",
       input_dt: dayjs().format("YYYY-MM-DD"),
       balance_dt: "",
       type: 0,
@@ -196,10 +203,10 @@ export default function DeadlineBalanceTab() {
       difference_price: "",
       note: "",
       balance_price: "",
-      before_price: ""
+      before_price: "",
     });
     setModalOpen(false);
-  } 
+  };
 
   // 🔹 입금 폼 변경
   const handleDepositChange = async (e) => {
@@ -233,21 +240,22 @@ export default function DeadlineBalanceTab() {
           value
         );
 
-        // 응답값 있으면 API 값 사용, 없으면 기존 balanceRows 값 사용
         if (diff !== null) {
-          console.log(diff);
           updated.deposit_amount = formatNumber(diff);
         } else {
           if (value === "1")
-            updated.deposit_amount = formatNumber(selectedCustomer.living_cost) || "";
+            updated.deposit_amount =
+              formatNumber(selectedCustomer.living_cost) || "";
           else if (value === "2")
-            updated.deposit_amount = formatNumber(selectedCustomer.basic_cost) || "";
+            updated.deposit_amount =
+              formatNumber(selectedCustomer.basic_cost) || "";
           else if (value === "3")
-            updated.deposit_amount = formatNumber(selectedCustomer.employ_cost) || "";
+            updated.deposit_amount =
+              formatNumber(selectedCustomer.employ_cost) || "";
         }
       } else if (value === "4") {
-        // 미수잔액은 기존 잔액 전체
-        updated.deposit_amount = formatNumber(selectedCustomer.balance_price) || "";
+        updated.deposit_amount =
+          formatNumber(selectedCustomer.balance_price) || "";
       } else {
         updated.deposit_amount = "";
       }
@@ -257,29 +265,28 @@ export default function DeadlineBalanceTab() {
   };
 
   const handleSaveDeposit = async () => {
-
     if (depositForm.type == 1) {
-      if (parseNumber(depositForm.deposit_amount) == 0) {
+      if (parseNumber(depositForm.deposit_amount) === 0) {
         Swal.fire("생계비 잔액이 0원 입니다.", "", "success");
         return;
       }
     }
 
     if (depositForm.type == 2) {
-      if (parseNumber(depositForm.deposit_amount) == 0) {
+      if (parseNumber(depositForm.deposit_amount) === 0) {
         Swal.fire("일반식대 잔액이 0원 입니다.", "", "success");
         return;
       }
     }
 
     if (depositForm.type == 3) {
-      if (parseNumber(depositForm.deposit_amount) == 0) {
+      if (parseNumber(depositForm.deposit_amount) === 0) {
         Swal.fire("직원식대 잔액이 0원 입니다.", "", "success");
         return;
       }
     }
 
-    if (parseNumber(depositForm.balance_price) == 0) {
+    if (parseNumber(depositForm.balance_price) === 0) {
       Swal.fire("잔액이 0원 입니다.", "", "success");
       return;
     }
@@ -290,7 +297,9 @@ export default function DeadlineBalanceTab() {
         deposit_amount: parseNumber(depositForm.deposit_amount),
         input_price: parseNumber(depositForm.input_price),
         difference_price: parseNumber(depositForm.difference_price),
-        balance_price: parseNumber(depositForm.balance_price) - parseNumber(depositForm.input_price),
+        balance_price:
+          parseNumber(depositForm.balance_price) -
+          parseNumber(depositForm.input_price),
         year,
         month,
       };
@@ -298,7 +307,6 @@ export default function DeadlineBalanceTab() {
       Swal.fire("입금 내역이 저장되었습니다.", "", "success");
       await fetchDeadlineBalanceList();
       await fetchDepositHistoryList(selectedCustomer.account_id, year);
-      // ✅ balanceRows 갱신 후 자동 재선택 트리거
       setRefetchTrigger(true);
       handleDepositModalClose();
       setModalOpen(false);
@@ -373,61 +381,111 @@ export default function DeadlineBalanceTab() {
     []
   );
 
-  const tableSx = {
-    flex: 1,
-    maxHeight: "70vh", 
-    overflowY: "auto",
-    "& table": {
-      borderCollapse: "separate",
-      width: "max-content",
-      minWidth: "100%",
-      borderSpacing: 0,
-    },
-    "& th, & td": {
-      border: "1px solid #686D76",
-      textAlign: "center",
-      padding: "4px",
-      whiteSpace: "pre-wrap",
-      fontSize: "12px",
-      verticalAlign: "middle",
-    },
-    "& th": {
-      backgroundColor: "#f0f0f0",
-      position: "sticky",
-      top: 0,
-      zIndex: 2,
-    },
-    "& input[type='date'], & input[type='text']": {
-      fontSize: "12px",
-      padding: "4px",
-      minWidth: "80px",
-      border: "none",
-      background: "transparent",
-    },
-  };
+  // ✅ 반응형 테이블 스타일
+  const tableSx = useMemo(
+    () => ({
+      flex: 1,
+      maxHeight: isMobile ? "55vh" : "70vh",
+      overflowY: "auto",
+      overflowX: "auto", // 모바일에서 가로 스크롤 허용
+      "& table": {
+        borderCollapse: "separate",
+        width: "max-content",
+        minWidth: "100%",
+        borderSpacing: 0,
+      },
+      "& th, & td": {
+        border: "1px solid #686D76",
+        textAlign: "center",
+        padding: isMobile ? "3px" : "4px",
+        whiteSpace: "pre-wrap",
+        fontSize: isMobile ? "11px" : "12px",
+        verticalAlign: "middle",
+      },
+      "& th": {
+        backgroundColor: "#f0f0f0",
+        position: "sticky",
+        top: 0,
+        zIndex: 2,
+      },
+      "& input[type='date'], & input[type='text']": {
+        fontSize: isMobile ? "11px" : "12px",
+        padding: isMobile ? "3px" : "4px",
+        minWidth: isMobile ? "70px" : "80px",
+        border: "none",
+        background: "transparent",
+      },
+    }),
+    [isMobile]
+  );
 
   return (
     <>
       {/* 상단 필터 영역 */}
-      <MDBox pt={1} pb={1} sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-        <Select value={year} onChange={(e) => setYear(Number(e.target.value))} size="small">
-          {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
-            <MenuItem key={y} value={y}>{y}년</MenuItem>
-          ))}
-        </Select>
-        <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} size="small">
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <MenuItem key={m} value={m}>{m}월</MenuItem>
-          ))}
-        </Select>
-        <MDButton variant="gradient" color="info" onClick={handleDepositModalOpen}>입금</MDButton>
-        <MDButton variant="gradient" color="success" onClick={handleSaveChanges}>저장</MDButton>
+      <MDBox
+        pt={1}
+        pb={1}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          flexWrap: isMobile ? "wrap" : "nowrap",
+          gap: 1,
+        }}
+      >
+        <MDBox
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: "wrap",
+          }}
+        >
+          <Select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            size="small"
+            sx={{ minWidth: 90 }}
+          >
+            {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
+              <MenuItem key={y} value={y}>
+                {y}년
+              </MenuItem>
+            ))}
+          </Select>
+          <Select
+            value={month}
+            onChange={(e) => setMonth(Number(e.target.value))}
+            size="small"
+            sx={{ minWidth: 70 }}
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <MenuItem key={m} value={m}>
+                {m}월
+              </MenuItem>
+            ))}
+          </Select>
+        </MDBox>
+
+        <MDBox
+          sx={{
+            display: "flex",
+            gap: 1,
+            mt: isMobile ? 1 : 0,
+          }}
+        >
+          <MDButton variant="gradient" color="info" onClick={handleDepositModalOpen}>
+            입금
+          </MDButton>
+          <MDButton variant="gradient" color="success" onClick={handleSaveChanges}>
+            저장
+          </MDButton>
+        </MDBox>
       </MDBox>
 
       {/* 메인 테이블 */}
       <Grid container spacing={2}>
         {/* 좌측 테이블 */}
-        <Grid item xs={6}>
+        <Grid item xs={12} md={6}>
           <MDBox
             py={1}
             px={2}
@@ -441,16 +499,20 @@ export default function DeadlineBalanceTab() {
             top={0}
             zIndex={3}
           >
-            <MDTypography variant="h6" color="white">
+            <MDTypography variant="h6" color="white" sx={{ fontSize: isMobile ? "14px" : "16px" }}>
               거래처별 미수잔액
             </MDTypography>
           </MDBox>
 
           <Box sx={tableSx}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ position: "sticky", top: 0, background: "#f0f0f0", zIndex: 2 }}>
+              <thead
+                style={{ position: "sticky", top: 0, background: "#f0f0f0", zIndex: 2 }}
+              >
                 <tr>
-                  {columns.map((col) => <th key={col.accessorKey}>{col.header}</th>)}
+                  {columns.map((col) => (
+                    <th key={col.accessorKey}>{col.header}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -482,22 +544,30 @@ export default function DeadlineBalanceTab() {
                         );
                       }
 
-                      if (["living_cost", "basic_cost", "employ_cost", "input_exp", "balance_price"].includes(key)) {
+                      if (
+                        ["living_cost", "basic_cost", "employ_cost", "input_exp", "balance_price"].includes(
+                          key
+                        )
+                      ) {
                         return (
                           <td key={key} align="right">
                             <input
                               type="text"
-                              value={formatNumber(value ?? "")}
-                              onChange={(e) => handleChange(row.account_name, key, e.target.value)}
+                              value={key === "input_exp" ? value ?? "" : formatNumber(value ?? "")}
+                              onChange={(e) =>
+                                handleChange(row.account_name, key, e.target.value)
+                              }
                               onBlur={(e) => {
-                                const formatted = formatNumber(parseNumber(e.target.value));
-                                setEditableRows((prev) =>
-                                  prev.map((r) =>
-                                    r.account_name === row.account_name
-                                      ? { ...r, [key]: parseNumber(formatted) }
-                                      : r
-                                  )
-                                );
+                                if (key !== "input_exp") {
+                                  const formatted = formatNumber(parseNumber(e.target.value));
+                                  setEditableRows((prev) =>
+                                    prev.map((r) =>
+                                      r.account_name === row.account_name
+                                        ? { ...r, [key]: parseNumber(formatted) }
+                                        : r
+                                    )
+                                  );
+                                }
                               }}
                               style={{
                                 width: key === "input_exp" ? "100px" : "80px",
@@ -511,7 +581,18 @@ export default function DeadlineBalanceTab() {
                         );
                       }
 
-                      return <td key={key} align="right" style={{ fontWeight:"bold", backgroundColor: key === "before_price2" ? "#FDE7B3" : "", }} >{formatNumber(value)}</td>;
+                      return (
+                        <td
+                          key={key}
+                          align="right"
+                          style={{
+                            fontWeight: "bold",
+                            backgroundColor: key === "before_price2" ? "#FDE7B3" : "",
+                          }}
+                        >
+                          {formatNumber(value)}
+                        </td>
+                      );
                     })}
                   </tr>
                 ))}
@@ -521,7 +602,7 @@ export default function DeadlineBalanceTab() {
         </Grid>
 
         {/* 우측 테이블 */}
-        <Grid item xs={6}>
+        <Grid item xs={12} md={6}>
           <MDBox
             py={1}
             px={2}
@@ -535,36 +616,48 @@ export default function DeadlineBalanceTab() {
             top={0}
             zIndex={3}
           >
-            <MDTypography variant="h6" color="white">
+            <MDTypography variant="h6" color="white" sx={{ fontSize: isMobile ? "14px" : "16px" }}>
               입금내역
             </MDTypography>
           </MDBox>
 
           <Box sx={tableSx}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ position: "sticky", top: 0, background: "#f0f0f0", zIndex: 2 }}>
+              <thead
+                style={{ position: "sticky", top: 0, background: "#f0f0f0", zIndex: 2 }}
+              >
                 <tr>
-                  {columns2.map((col) => <th key={col.accessorKey}>{col.header}</th>)}
+                  {columns2.map((col) => (
+                    <th key={col.accessorKey}>{col.header}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {selectedCustomer && depositRows.map((row, i) => (
-                  <tr key={i}>
-                    {columns2.map((col) => {
-                      const key = col.accessorKey;
-                      const value = row[key];
-                      if (["deposit_amount", "input_price", "difference_price"].includes(key)) {
-                        return <td key={key} align="right">{formatNumber(value)}</td>;
-                      }
-                      return <td key={key}>{value}</td>;
-                    })}
-                  </tr>
-                ))}
+                {selectedCustomer &&
+                  depositRows.map((row, i) => (
+                    <tr key={i}>
+                      {columns2.map((col) => {
+                        const key = col.accessorKey;
+                        const value = row[key];
+                        if (
+                          ["deposit_amount", "input_price", "difference_price"].includes(key)
+                        ) {
+                          return (
+                            <td key={key} align="right">
+                              {formatNumber(value)}
+                            </td>
+                          );
+                        }
+                        return <td key={key}>{value}</td>;
+                      })}
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </Box>
         </Grid>
       </Grid>
+
       {/* 입금 모달 */}
       <Modal open={modalOpen} onClose={handleDepositModalClose}>
         <Box
@@ -573,14 +666,16 @@ export default function DeadlineBalanceTab() {
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: 500,
+            width: isMobile ? "90vw" : 500, // ✅ 모바일에서 넓이 줄이기
+            maxHeight: "90vh",
+            overflowY: "auto",
             bgcolor: "background.paper",
             borderRadius: 2,
             boxShadow: 24,
-            p: 5,
+            p: isMobile ? 3 : 5,
           }}
         >
-          <MDTypography variant="h6" mb={2}>
+          <MDTypography variant="h6" mb={2} sx={{ fontSize: isMobile ? "15px" : "18px" }}>
             입금 등록
           </MDTypography>
           <TextField
@@ -590,7 +685,7 @@ export default function DeadlineBalanceTab() {
             margin="dense"
             disabled
           />
-          <Box display="flex" gap={1} mb={2}>
+          <Box display="flex" gap={1} mb={2} flexDirection={isMobile ? "column" : "row"}>
             <TextField
               margin="normal"
               label="입금일자"
@@ -649,7 +744,7 @@ export default function DeadlineBalanceTab() {
             fullWidth
             margin="dense"
           />
-          <Box display="flex" justifyContent="flex-end" gap={1}>
+          <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
             <Button variant="contained" onClick={handleDepositModalClose}>
               취소
             </Button>

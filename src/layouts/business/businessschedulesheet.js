@@ -380,7 +380,7 @@ function BusinessScheduleSheet() {
 
   return (
     <DashboardLayout>
-      <HeaderWithLogout title="📅 영업 일정관리 (내부 관리용)" />
+      <HeaderWithLogout showMenuButton title="📅 영업 일정관리 (내부 관리용)" />
 
       {loading && (
         <Typography sx={{ mt: 2 }}>⏳ 데이터 불러오는 중...</Typography>

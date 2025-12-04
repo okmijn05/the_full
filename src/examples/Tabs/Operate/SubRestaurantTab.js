@@ -3,13 +3,16 @@ import React, { useMemo, useState, useEffect } from "react";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
-import { TextField } from "@mui/material";
+import { TextField, useTheme, useMediaQuery } from "@mui/material";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import Swal from "sweetalert2";
 import api from "api/api";
 import useSubRestaurantData from "./subRestaurantData"; // ✅ 수정된 훅 사용
 
 function SubRestaurantTab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const { activeRows, setActiveRows, loading, fetcSubRestaurantList } = useSubRestaurantData();
   const [rows, setRows] = useState([]);
   const [originalRows, setOriginalRows] = useState([]);
@@ -37,7 +40,7 @@ function SubRestaurantTab() {
     { label: "제주", value: "제주%" },
   ];
 
-  // ✅ 초기 조회
+  // ✅ 초기 조회 + 지역 변경 시 재조회
   useEffect(() => {
     fetcSubRestaurantList(regionFilter);
   }, [regionFilter]);
@@ -114,8 +117,8 @@ function SubRestaurantTab() {
   // ✅ 테이블 컬럼 정의
   const columns = useMemo(
     () => [
-      { header: "업장명", accessorKey: "account_name", size: 120 },
-      { header: "주소", accessorKey: "account_address", size: 300 },
+      { header: "업장명", accessorKey: "account_name", size: 140 },
+      { header: "주소", accessorKey: "account_address", size: 320 },
       { header: "이동급식", accessorKey: "move_lunch", size: 110 },
       { header: "연락처", accessorKey: "move_lunch_tel", size: 110 },
       { header: "식당1", accessorKey: "sub_restaurant1", size: 110 },
@@ -128,27 +131,35 @@ function SubRestaurantTab() {
     []
   );
 
-  // ✅ 테이블 스타일
+  // ✅ 테이블 스타일 (모바일 대응)
   const tableSx = {
     flex: 1,
     minHeight: 0,
+    maxHeight: isMobile ? "55vh" : "75vh",
+    overflowX: "auto",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
-      width: "max-content",
+      width: "max-content",   // ✅ 화면보다 넓으면 가로 스크롤
       minWidth: "100%",
       borderSpacing: 0,
+      tableLayout: "fixed",
     },
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "4px",
+      padding: isMobile ? "2px" : "4px",
       whiteSpace: "pre-wrap",
-      fontSize: "12px",
+      fontSize: isMobile ? "10px" : "12px",
+      verticalAlign: "middle",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
     },
     "& th": {
       backgroundColor: "#f0f0f0",
       position: "sticky",
-      top: 130,
+      top: 0,        // ✅ 스크롤 박스 내에서 상단 고정
       zIndex: 10,
     },
   };
@@ -161,12 +172,12 @@ function SubRestaurantTab() {
       <MDBox
         pt={1}
         pb={1}
-        gap={1}
         sx={{
           display: "flex",
-          justifyContent: "flex-end",
+          justifyContent: isMobile ? "space-between" : "flex-end",
           alignItems: "center",
-          gap: 2,
+          gap: isMobile ? 1 : 2,
+          flexWrap: isMobile ? "wrap" : "nowrap",
           position: "sticky",
           zIndex: 10,
           top: 78,
@@ -179,7 +190,10 @@ function SubRestaurantTab() {
           size="small"
           value={regionFilter}
           onChange={(e) => setRegionFilter(e.target.value)}
-          sx={{ minWidth: 150 }}
+          sx={{
+            minWidth: isMobile ? 140 : 150,
+            fontSize: isMobile ? "12px" : "14px",
+          }}
           SelectProps={{ native: true }}
         >
           {regionOptions.map((opt) => (
@@ -189,13 +203,18 @@ function SubRestaurantTab() {
           ))}
         </TextField>
 
-        <MDButton color="info" onClick={handleSave}>
+        <MDButton
+          color="info"
+          onClick={handleSave}
+          sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 80 : 100 }}
+        >
           저장
         </MDButton>
       </MDBox>
 
       {/* 테이블 렌더링 */}
       <MDBox pt={1} pb={3} sx={tableSx}>
+        {/* 타이틀 박스 필요하면 주석 해제 */}
         {/* <MDBox
           mx={0}
           mt={-3}

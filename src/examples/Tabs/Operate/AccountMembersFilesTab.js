@@ -4,13 +4,12 @@ import React, { useMemo, useState, useEffect } from "react";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
-import { TextField } from "@mui/material";
+import { TextField, useTheme, useMediaQuery } from "@mui/material";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import useMembersFilesData from "./accountMembersFilesData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 import api from "api/api";
 import Swal from "sweetalert2";
-//import { buildUrl } from "config";
 import { API_BASE_URL } from "config";
 
 function AccountMembersFilesTab() {
@@ -21,6 +20,9 @@ function AccountMembersFilesTab() {
   const [rows, setRows] = useState([]);
   const [originalRows, setOriginalRows] = useState([]);
   const [viewImageSrc, setViewImageSrc] = useState(null);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   // ✅ 계정 변경 시 조회
   useEffect(() => {
@@ -102,7 +104,7 @@ function AccountMembersFilesTab() {
         params: { member_id: memberId, doc_type_id: newDocType },
       });
 
-      const data = Array.isArray(res.data) ? res.data[0] : res.data; // ✅ 배열이면 첫 번째 값만 사용
+      const data = Array.isArray(res.data) ? res.data[0] : res.data;
 
       if (data && Object.keys(data).length > 0) {
         setRows((prev) =>
@@ -111,7 +113,7 @@ function AccountMembersFilesTab() {
               ? {
                   ...row,
                   ...data,
-                  doc_type_id: String(data.doc_type_id || newDocType), // ✅ 숫자 → 문자열 변환
+                  doc_type_id: String(data.doc_type_id || newDocType),
                 }
               : row
           )
@@ -164,6 +166,26 @@ function AccountMembersFilesTab() {
     []
   );
 
+  // ✅ 이미지 업로드 함수
+  const uploadImage = async (file, member_id, account_id) => {
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "memberFile");
+      formData.append("gubun", member_id);
+      formData.append("folder", account_id);
+
+      const res = await api.post(`/Operate/OperateImgUpload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.data.code === 200) return res.data.image_path;
+    } catch (err) {
+      Swal.fire("실패", "이미지 업로드 실패", "error");
+    }
+  };
+
   // ✅ 저장 (user_id 포함)
   const handleSave = async () => {
     try {
@@ -185,7 +207,7 @@ function AccountMembersFilesTab() {
 
           if (!isChanged) return null;
 
-          // ✅ 이미지가 파일 객체이면 서버 업로드 후 URL로 변환
+          // ✅ 파일이 File 객체면 업로드
           if (row.file_path && typeof row.file_path === "object") {
             const uploadedPath = await uploadImage(
               row.file_path,
@@ -209,11 +231,9 @@ function AccountMembersFilesTab() {
         return;
       }
 
-      const res = await api.post(
-        `/Operate/AccountMembersFilesSave`,
-        payload,
-        { headers: { "Content-Type": "application/json" } }
-      );
+      const res = await api.post(`/Operate/AccountMembersFilesSave`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
 
       if (res.data.code === 200) {
         Swal.fire("저장 완료", "성공적으로 저장되었습니다.", "success");
@@ -225,47 +245,31 @@ function AccountMembersFilesTab() {
     }
   };
 
-  // ✅ 이미지 업로드 함수
-  const uploadImage = async (file, member_id, account_id) => {
-    if (!file) return;
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "memberFile");
-      formData.append("gubun", member_id);
-      formData.append("folder", account_id);
-
-      const res = await api.post(`/Operate/OperateImgUpload`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      if (res.data.code === 200) return res.data.image_path;
-    } catch (err) {
-      Swal.fire("실패", "이미지 업로드 실패", "error");
-    }
-  };
-
-  // ✅ 테이블 스타일
+  // ✅ 모바일 대응 테이블 스타일
   const tableSx = {
     flex: 1,
-    minHeight: 0,
+    mt: 1,
+    maxHeight: isMobile ? "60vh" : "none",
+    overflowX: "auto",
+    overflowY: isMobile ? "auto" : "visible",
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
-      minWidth: "100%",
+      minWidth: isMobile ? "700px" : "100%",
       borderSpacing: 0,
     },
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "4px",
-      fontSize: "12px",
+      padding: isMobile ? "3px" : "4px",
+      fontSize: isMobile ? "10px" : "12px",
       verticalAlign: "middle",
     },
     "& th": {
       backgroundColor: "#f0f0f0",
       position: "sticky",
-      top: 130,
+      top: 0,
       zIndex: 10,
     },
   };
@@ -274,24 +278,28 @@ function AccountMembersFilesTab() {
 
   return (
     <>
-      {/* ✅ 상단 메뉴 */}
-      <MDBox 
-        pb={1} 
-        sx={{ 
-          display: "flex", 
-          justifyContent: "flex-end", 
-          gap: 1, 
+      {/* ✅ 상단 메뉴 (모바일 대응) */}
+      <MDBox
+        pt={1}
+        pb={1}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          flexWrap: isMobile ? "wrap" : "nowrap",
+          gap: isMobile ? 1 : 2,
           position: "sticky",
           zIndex: 10,
           top: 78,
           backgroundColor: "#ffffff",
-          }}
+        }}
       >
         <TextField
-          select size="small"
+          select
+          size="small"
           value={selectedAccountId}
           onChange={(e) => setSelectedAccountId(e.target.value)}
-          sx={{ minWidth: 150 }}
+          sx={{ minWidth: isMobile ? 160 : 200 }}
           SelectProps={{ native: true }}
         >
           {(accountList || []).map((row) => (
@@ -300,25 +308,24 @@ function AccountMembersFilesTab() {
             </option>
           ))}
         </TextField>
-        <MDButton color="info" onClick={handleSave}>저장</MDButton>
+        <MDButton
+          color="info"
+          onClick={handleSave}
+          sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 80 : 100 }}
+        >
+          저장
+        </MDButton>
       </MDBox>
 
       {/* ✅ 테이블 */}
       <MDBox pt={1} pb={3} sx={tableSx}>
-        {/* <MDBox
-          mx={0} mt={-3} py={1} px={2}
-          variant="gradient" bgColor="info"
-          borderRadius="lg" coloredShadow="info"
-          display="flex" justifyContent="space-between" alignItems="center"
-        >
-          <MDTypography variant="h6" color="white">자격증 관리</MDTypography>
-        </MDBox> */}
-
         <table>
           <thead>
             <tr>
               {columns.map((col) => (
-                <th key={col.accessorKey} style={{ width: col.size }}>{col.header}</th>
+                <th key={col.accessorKey} style={{ width: col.size }}>
+                  {col.header}
+                </th>
               ))}
             </tr>
           </thead>
@@ -329,21 +336,33 @@ function AccountMembersFilesTab() {
                 {columns.map((col) => {
                   const key = col.accessorKey;
                   const value = row[key] ?? "";
-                  const style = { width: col.size, ...getCellStyle(rowIndex, key, value) };
+                  const style = {
+                    width: col.size,
+                    ...getCellStyle(rowIndex, key, value),
+                  };
 
-                  // ✅ 문서종류 select + 행 재조회/초기화
+                  // ✅ 문서종류 select
                   if (key === "doc_type_id") {
                     const options = getDocTypeOptions(row.position);
                     return (
                       <td key={key} style={style}>
                         <select
                           value={value || ""}
-                          onChange={(e) => handleDocTypeChange(rowIndex, e.target.value)}
-                          style={{ width: "100%", ...style }}
+                          onChange={(e) =>
+                            handleDocTypeChange(rowIndex, e.target.value)
+                          }
+                          style={{
+                            width: "100%",
+                            fontSize: isMobile ? 10 : 12,
+                            border: "none",
+                            background: "transparent",
+                          }}
                         >
                           <option value="">선택</option>
                           {options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
                           ))}
                         </select>
                       </td>
@@ -357,8 +376,15 @@ function AccountMembersFilesTab() {
                         <input
                           type="date"
                           value={value}
-                          onChange={(e) => handleCellChange(rowIndex, key, e.target.value)}
-                          style={{ width: "100%", ...style }}
+                          onChange={(e) =>
+                            handleCellChange(rowIndex, key, e.target.value)
+                          }
+                          style={{
+                            width: "100%",
+                            fontSize: isMobile ? 10 : 12,
+                            border: "none",
+                            background: "transparent",
+                          }}
                         />
                       </td>
                     );
@@ -367,14 +393,18 @@ function AccountMembersFilesTab() {
                   // ✅ 파일 (이미지 업로드/미리보기)
                   if (key === "file_path") {
                     return (
-                      <td key={key} style={{ ...style, verticalAlign: "middle" }}>
+                      <td
+                        key={key}
+                        style={{ ...style, verticalAlign: "middle" }}
+                      >
                         <div
                           style={{
                             display: "flex",
-                            alignItems: "center",  // 세로 중앙
-                            justifyContent: "center", // 가운데 정렬
-                            gap: "8px", // 이미지와 버튼 사이 간격
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
                             height: "100%",
+                            flexWrap: isMobile ? "wrap" : "nowrap",
                           }}
                         >
                           <input
@@ -382,7 +412,13 @@ function AccountMembersFilesTab() {
                             accept="image/*"
                             id={`upload-${key}-${rowIndex}`}
                             style={{ display: "none" }}
-                            onChange={(e) => handleCellChange(rowIndex, key, e.target.files[0])}
+                            onChange={(e) =>
+                              handleCellChange(
+                                rowIndex,
+                                key,
+                                e.target.files[0]
+                              )
+                            }
                           />
                           {value && (
                             <img
@@ -393,10 +429,10 @@ function AccountMembersFilesTab() {
                               }
                               alt="preview"
                               style={{
-                                maxWidth: "80px",
-                                maxHeight: "80px",
+                                maxWidth: isMobile ? "60px" : "80px",
+                                maxHeight: isMobile ? "60px" : "80px",
                                 cursor: "pointer",
-                                borderRadius: "4px",
+                                borderRadius: 4,
                               }}
                               onClick={() =>
                                 setViewImageSrc(
@@ -412,7 +448,10 @@ function AccountMembersFilesTab() {
                               size="small"
                               color="info"
                               component="span"
-                              style={{ alignSelf: "center" }} // 버튼 세로 중앙 고정
+                              sx={{
+                                fontSize: isMobile ? "10px" : "12px",
+                                minWidth: isMobile ? 60 : 80,
+                              }}
                             >
                               업로드
                             </MDButton>
@@ -429,7 +468,13 @@ function AccountMembersFilesTab() {
                       style={style}
                       contentEditable
                       suppressContentEditableWarning
-                      onBlur={(e) => handleCellChange(rowIndex, key, e.target.innerText.trim())}
+                      onBlur={(e) =>
+                        handleCellChange(
+                          rowIndex,
+                          key,
+                          e.target.innerText.trim()
+                        )
+                      }
                     >
                       {value}
                     </td>
@@ -445,17 +490,30 @@ function AccountMembersFilesTab() {
       {viewImageSrc && (
         <div
           style={{
-            position: "fixed", top: 0, left: 0,
-            width: "100vw", height: "100vh",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
             backgroundColor: "rgba(0,0,0,0.8)",
-            display: "flex", justifyContent: "center", alignItems: "center",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
             zIndex: 9999,
           }}
           onClick={() => setViewImageSrc(null)}
         >
-          <TransformWrapper initialScale={1}>
+          <TransformWrapper initialScale={1} minScale={0.5} maxScale={5}>
             <TransformComponent>
-              <img src={viewImageSrc} alt="미리보기" style={{ maxWidth: "80%", maxHeight: "80%" }} />
+              <img
+                src={viewImageSrc}
+                alt="미리보기"
+                style={{
+                  maxWidth: "90%",
+                  maxHeight: "90%",
+                  borderRadius: 8,
+                }}
+              />
             </TransformComponent>
           </TransformWrapper>
         </div>
@@ -465,4 +523,3 @@ function AccountMembersFilesTab() {
 }
 
 export default AccountMembersFilesTab;
-

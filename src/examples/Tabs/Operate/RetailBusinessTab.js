@@ -126,9 +126,9 @@ function RetailBusinessTab() {
     () => [
       { header: "업체명", accessorKey: "name", size: 100 },
       { header: "사업자번호", accessorKey: "biz_no", size: 80 },
-      { header: "대표자명", accessorKey: "ceo_name", size: 100 },
+      { header: "대표자명", accessorKey: "ceo_name", size: 120 },
       { header: "전화번호", accessorKey: "tel", size: 80 },
-      { header: "은행명", accessorKey: "bank_name", size: 80 },
+      { header: "은행명", accessorKey: "bank_name", size: 60 },
       { header: "계좌번호", accessorKey: "bank_no", size: 80 },
       { header: "통장사본", accessorKey: "bank_image", size: 80 },
       { header: "사업자등록증", accessorKey: "biz_image", size: 80 },

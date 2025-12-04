@@ -11,8 +11,9 @@ import Card from "@mui/material/Card";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
-import { Modal, Box, Select, MenuItem, Button, TextField } from "@mui/material";
+import { Modal, Box, Select, MenuItem, Button, TextField, useTheme, useMediaQuery } from "@mui/material";
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
+import HeaderWithLogout from "components/Common/HeaderWithLogout";
 import api from "api/api";
 import dayjs from "dayjs";
 import PropTypes from "prop-types";
@@ -177,6 +178,9 @@ function RecordSheet() {
   const handleMonthChange = (e) => setMonth(Number(e.target.value));
 
   const daysInMonth = dayjs(`${year}-${month}`).daysInMonth();
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   // 모달 상태
   const [open, setOpen] = useState(false);
@@ -506,46 +510,121 @@ const handleSave = async () => {
 
   return (
     <DashboardLayout>
-      <MDBox pt={1} pb={5} gap={1} sx={{ display: "flex", justifyContent: "flex-end" }}>
-        <TextField
-          select
-          size="small"
-          value={selectedAccountId}
-          onChange={(e) => setSelectedAccountId(e.target.value)}
-          sx={{ minWidth: 150 }}
-          SelectProps={{ native: true }}
-        >
-          {(accountList || []).map((row) => (
-            <option key={row.account_id} value={row.account_id}>
-              {row.account_name}
-            </option>
-          ))}
-        </TextField>
-        <Select value={year} onChange={handleYearChange} size="small">
-          {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
-            <MenuItem key={y} value={y}>{y}년</MenuItem>
-          ))}
-        </Select>
-        <Select value={month} onChange={handleMonthChange} size="small">
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <MenuItem key={m} value={m}>{m}월</MenuItem>
-          ))}
-        </Select>
-        <MDButton variant="gradient" color="success" onClick={handleApplyDefaultTime}>
-          출퇴근 일괄 적용
-        </MDButton>
-        {/* ✅ 조회 버튼 추가 */}
-        <MDButton variant="gradient" color="warning" onClick={fetchAllData}>
-          조회
-        </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
-          저장
-        </MDButton>
+      <MDBox
+        sx={{
+          position: "sticky",
+          top: 0,             // 상단 고정 위치 (필요하면 56, 64 등으로 조절 가능)
+          zIndex: 10,
+          backgroundColor: "#ffffff",
+          borderBottom: "1px solid #eee",
+        }}
+      >
+        {/* 🔹 공통 헤더 사용 */}
+        <HeaderWithLogout showMenuButton title="🚌 출근부" />
+          <MDBox
+            pt={1}
+            pb={3}
+            sx={{
+              display: "flex",
+              flexWrap: isMobile ? "wrap" : "nowrap",
+              justifyContent: isMobile ? "flex-start" : "flex-end",
+              alignItems: "center",
+              gap: isMobile ? 1 : 2,
+            }}
+          >
+          <TextField
+            select
+            size="small"
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            sx={{
+              minWidth: isMobile ? 140 : 150,
+            }}
+            SelectProps={{ native: true }}
+          >
+            {(accountList || []).map((row) => (
+              <option key={row.account_id} value={row.account_id}>
+                {row.account_name}
+              </option>
+            ))}
+          </TextField>
+
+          <Select
+            value={year}
+            onChange={handleYearChange}
+            size="small"
+            sx={{
+              minWidth: isMobile ? 90 : 110,
+              "& .MuiSelect-select": { fontSize: isMobile ? "0.75rem" : "0.875rem" },
+            }}
+          >
+            {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
+              <MenuItem key={y} value={y}>
+                {y}년
+              </MenuItem>
+            ))}
+          </Select>
+
+          <Select
+            value={month}
+            onChange={handleMonthChange}
+            size="small"
+            sx={{
+              minWidth: isMobile ? 80 : 100,
+              "& .MuiSelect-select": { fontSize: isMobile ? "0.75rem" : "0.875rem" },
+            }}
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <MenuItem key={m} value={m}>
+                {m}월
+              </MenuItem>
+            ))}
+          </Select>
+
+          <MDButton
+            variant="gradient"
+            color="success"
+            onClick={handleApplyDefaultTime}
+            sx={{
+              fontSize: isMobile ? "0.7rem" : "0.8rem",
+              minWidth: isMobile ? 110 : 130,
+              px: isMobile ? 1 : 2,
+            }}
+          >
+            출퇴근 일괄 적용
+          </MDButton>
+
+          <MDButton
+            variant="gradient"
+            color="warning"
+            onClick={fetchAllData}
+            sx={{
+              fontSize: isMobile ? "0.7rem" : "0.8rem",
+              minWidth: isMobile ? 70 : 90,
+              px: isMobile ? 1 : 2,
+            }}
+          >
+            조회
+          </MDButton>
+
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleSave}
+            sx={{
+              fontSize: isMobile ? "0.7rem" : "0.8rem",
+              minWidth: isMobile ? 70 : 90,
+              px: isMobile ? 1 : 2,
+            }}
+          >
+            저장
+          </MDButton>
+        </MDBox>
       </MDBox>
       <Grid container spacing={5}>
         <Grid item xs={12}>
           <Card>
-            <MDBox mx={0} mt={-3} py={1} px={2} variant="gradient" bgColor="info" borderRadius="lg" coloredShadow="info">
+            <MDBox mx={0} mt={1} py={1} px={2} variant="gradient" bgColor="info" borderRadius="lg" coloredShadow="info">
               <MDTypography variant="h6" color="white">
                 출근 현황
               </MDTypography>

@@ -8,6 +8,8 @@ import {
   IconButton,
   Dialog,
   DialogContent,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
@@ -21,6 +23,9 @@ import { API_BASE_URL } from "config";
 import useAccountEventData from "./accountEventData";
 
 export default function AccountEventTab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const {
     accountList,
     eventRows,
@@ -353,12 +358,14 @@ export default function AccountEventTab() {
   };
 
   // ================================
-  // 테이블 스타일
+  // 테이블 스타일 (모바일 대응)
   // ================================
   const tableSx = {
     flex: 1,
-    maxHeight: "75vh",
+    maxHeight: isMobile ? "55vh" : "75vh",
     overflowY: "auto",
+    overflowX: "auto",             // ✅ 가로 스크롤
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
@@ -368,8 +375,8 @@ export default function AccountEventTab() {
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "0px",
-      fontSize: "12px",
+      padding: isMobile ? "2px" : "4px",
+      fontSize: isMobile ? "10px" : "12px",
       verticalAlign: "middle",
     },
     "& th": {
@@ -377,18 +384,18 @@ export default function AccountEventTab() {
       position: "sticky",
       top: 0,
       zIndex: 10,
-      padding: "6px",
+      padding: isMobile ? "4px" : "6px",
     },
   };
 
   const cellInputStyle = (changed) => ({
     width: "100%",
     height: "100%",
-    padding: "6px",
+    padding: isMobile ? "4px" : "6px",
     border: "none",
     outline: "none",
     background: "transparent",
-    fontSize: "12px",
+    fontSize: isMobile ? "10px" : "12px",
     textAlign: "center",
     color: changed ? "red" : "black",
     boxSizing: "border-box",
@@ -401,27 +408,36 @@ export default function AccountEventTab() {
   // =================================================================================
   return (
     <>
-      {/* 상단 필터 + 버튼 */}
+      {/* 상단 필터 + 버튼 (모바일 줄바꿈) */}
       <MDBox
         pt={1}
         pb={1}
-        sx={{ 
-          display: "flex", 
-          justifyContent: "flex-end", 
-          alignItems: "center" ,
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          flexWrap: isMobile ? "wrap" : "nowrap",
+          gap: isMobile ? 1 : 0,
           position: "sticky",
           zIndex: 10,
           top: 78,
           backgroundColor: "#ffffff",
         }}
       >
-        <Box sx={{ display: "flex", gap: 1 }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: isMobile ? "wrap" : "nowrap",
+            width: isMobile ? "100%" : "auto",
+          }}
+        >
           <Select
             value={selectedAccountId}
             onChange={(e) => setSelectedAccountId(e.target.value)}
             size="small"
             displayEmpty
-            sx={{ minWidth: 200 }}
+            sx={{ minWidth: isMobile ? 160 : 200, fontSize: isMobile ? "12px" : "14px" }}
           >
             <MenuItem value="">거래처 선택</MenuItem>
             {(accountList || []).map((acc) => (
@@ -435,6 +451,7 @@ export default function AccountEventTab() {
             color="success"
             onClick={handleAddEventRow}
             startIcon={<Plus size={16} />}
+            sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 90 : 110 }}
           >
             행사 추가
           </MDButton>
@@ -443,6 +460,7 @@ export default function AccountEventTab() {
             variant="gradient"
             color="info"
             onClick={handleSaveAll}
+            sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 90 : 110 }}
           >
             전체 저장
           </MDButton>
@@ -452,33 +470,15 @@ export default function AccountEventTab() {
       {/* 메인 테이블 */}
       <Grid container spacing={2}>
         <Grid item xs={12}>
-          {/* <MDBox
-            py={1}
-            px={2}
-            variant="gradient"
-            bgColor="info"
-            borderRadius="lg"
-            display="flex"
-            justifyContent="space-between"
-            alignItems="center"
-            position="sticky"
-            top={0}
-            zIndex={3}
-          >
-            <MDTypography variant="h6" color="white">
-              행사별 사진 관리
-            </MDTypography>
-          </MDBox> */}
-
           <Box sx={tableSx}>
             <table>
               <thead>
                 <tr>
                   <th style={{ width: 100 }}>행사명</th>
-                  <th style={{ width: 80 }}>행사일자</th>
+                  <th style={{ width: 90 }}>행사일자</th>
                   <th style={{ width: 260 }}>이미지 목록</th>
-                  <th style={{ width: 200 }}>추가될 이미지</th>
-                  <th style={{ width: 200 }}>이미지 업로드</th>
+                  <th style={{ width: 220 }}>추가될 이미지</th>
+                  <th style={{ width: 180 }}>이미지 업로드</th>
                 </tr>
               </thead>
 
@@ -630,58 +630,57 @@ export default function AccountEventTab() {
                         }}
                       >
                         {row.pendingFiles.map((pf, idx2) => (
-                        <Box
-                          key={idx2}
-                          sx={{
-                            border: "1px solid #ccc",
-                            borderRadius: "4px",
-                            padding: "4px",
-                            display: "flex",
-                            gap: 0.5,
-                            alignItems: "center",
-                            background: "#f9fff6",
-                          }}
-                        >
                           <Box
+                            key={idx2}
                             sx={{
-                              width: 40,
-                              height: 40,
-                              overflow: "hidden",
+                              border: "1px solid #ccc",
                               borderRadius: "4px",
-                              flexShrink: 0,
+                              padding: "4px",
+                              display: "flex",
+                              gap: 0.5,
+                              alignItems: "center",
+                              background: "#f9fff6",
                             }}
                           >
-                            <img
-                              src={pf.previewUrl}
-                              alt={pf.file.name}
-                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                            />
+                            <Box
+                              sx={{
+                                width: 40,
+                                height: 40,
+                                overflow: "hidden",
+                                borderRadius: "4px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <img
+                                src={pf.previewUrl}
+                                alt={pf.file.name}
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            </Box>
+
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1,
+                                textAlign: "left",
+                              }}
+                            >
+                              {pf.file.name}
+                            </span>
+
+                            <IconButton
+                              size="small"
+                              color="error"
+                              sx={{ p: 0.5 }}
+                              onClick={() => removePendingFile(index, idx2)}
+                            >
+                              <Trash2 size={14} />
+                            </IconButton>
                           </Box>
-
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              flex: 1,
-                              textAlign: "left",
-                            }}
-                          >
-                            {pf.file.name}
-                          </span>
-
-                          <IconButton
-                            size="small"
-                            color="error"
-                            sx={{ p: 0.5 }}
-                            onClick={() => removePendingFile(index, idx2)}
-                          >
-                            <Trash2 size={14} />
-                          </IconButton>
-                        </Box>
-                      ))}
-
+                        ))}
                       </Box>
                     </td>
 

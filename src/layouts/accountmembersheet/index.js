@@ -512,7 +512,7 @@ function AccountMemberSheet() {
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="🧑‍🍳 현장 직원관리" />
+      <HeaderWithLogout showMenuButton title="🧑‍🍳 현장 직원관리" />
       <MDBox pt={1} pb={1} gap={1} sx={{ display: "flex", justifyContent: "flex-end" }}>
         <TextField
           select

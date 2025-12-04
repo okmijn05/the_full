@@ -157,7 +157,7 @@ export default function AccountIssueSheet() {
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="📋 고객사 이슈 현황" />
+      <HeaderWithLogout showMenuButton title="📋 고객사 이슈 현황" />
       <Grid container spacing={6}>
         {/* 거래처 테이블 */}
         <Grid item xs={12}>

@@ -11,6 +11,8 @@ import {
   Button,
   TextField,
   IconButton,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
@@ -24,6 +26,9 @@ import { Download, Trash2, RotateCcw, ChevronLeft, ChevronRight } from "lucide-r
 const MAX_FILES = 5;
 
 function CorCarTabStyled() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const [selectedCar, setSelectedCar] = useState("");
   const { carListRows, carSelectList, loading, fetchCarList, fetchCarSelectList } =
     useCarManagerData();
@@ -76,8 +81,6 @@ function CorCarTabStyled() {
   useEffect(() => {
     const deepCopy = carListRows.map((row) => ({
       ...row,
-      // 서버에서 images 배열을 내려주면 그대로 사용,
-      // 아니면 기본값 []
       images: row.images || [],
       pendingFiles: [],
       deletedImages: [],
@@ -110,9 +113,14 @@ function CorCarTabStyled() {
     return original !== value ? { color: "red" } : { color: "black" };
   };
 
+  // ✅ 반응형 테이블 컨테이너
   const tableSx = {
     flex: 1,
     minHeight: 0,
+    maxHeight: isMobile ? "60vh" : "75vh",
+    overflowX: "auto",
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
@@ -122,21 +130,21 @@ function CorCarTabStyled() {
     "& th, & td": {
       border: "1px solid #686D76",
       textAlign: "center",
-      padding: "4px",
+      padding: isMobile ? "2px" : "4px",
       whiteSpace: "pre-wrap",
-      fontSize: "12px",
+      fontSize: isMobile ? "10px" : "12px",
       verticalAlign: "middle",
     },
     "& th": {
       backgroundColor: "#f0f0f0",
       position: "sticky",
-      top: 130,
+      top: 0,          // 🔴 이 줄만 이렇게 수정
       zIndex: 10,
     },
     "& input[type='date'], & input[type='text']": {
-      fontSize: "12px",
-      padding: "4px",
-      minWidth: "80px",
+      fontSize: isMobile ? "10px" : "12px",
+      padding: isMobile ? "2px" : "4px",
+      minWidth: isMobile ? "60px" : "80px",
       border: "none",
       background: "transparent",
     },
@@ -221,7 +229,6 @@ function CorCarTabStyled() {
         const target = row.images[imgIndex];
         if (!target) return row;
 
-        // image_id 기준으로 우선 비교, 없으면 fallback 으로 image_path 비교
         const exists = row.deletedImages.some((d) =>
           d.image_id && target.image_id
             ? d.image_id === target.image_id
@@ -285,11 +292,6 @@ function CorCarTabStyled() {
     setCurrentIndex(0);
   };
 
-  // ================================
-  // 단일 이미지 업로드 (기존 로직, 필요 시 수정)
-  // 여러 장 저장 로직은 AccountEventTab처럼
-  // 별도 업로드/삭제 API를 만드는 게 좋음.
-  // ================================
   const uploadImage = async (file, serviceDt, carNumber) => {
     try {
       const formData = new FormData();
@@ -384,12 +386,10 @@ function CorCarTabStyled() {
     const user_id = localStorage.getItem("user_id") || "admin";
 
     try {
-      // rows 를 한 행씩 순차 처리
       for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
         const row = rows[rowIndex];
         const original = originalRows[rowIndex] || {};
 
-        // 1) 텍스트 컬럼 변경 여부
         const hasFieldChanges = columns.some((col) => {
           const key = col.accessorKey;
           const origVal = original[key];
@@ -401,45 +401,35 @@ function CorCarTabStyled() {
           return origVal !== newVal;
         });
 
-        // 2) 이미지 변경 여부 (추가/삭제)
         const hasImageChanges =
           (row.pendingFiles && row.pendingFiles.length > 0) ||
           (row.deletedImages && row.deletedImages.length > 0);
 
-        // 둘 다 변경 없으면 이 행은 스킵
         if (!hasFieldChanges && !hasImageChanges) continue;
 
-        // 이미지가 바뀌는데 날짜가 없으면 막기
         if (hasImageChanges && !row.service_dt) {
           await Swal.fire(
             "경고",
             "이미지를 업로드/삭제하려면 먼저 날짜를 입력해주세요.",
             "warning"
           );
-          // 이 행만 스킵하고 다음 행 계속
           continue;
         }
 
-        // ============================
-        // (1) 기존 이미지 삭제 (여러 개 선택 가능)
-        // ============================
+        // (1) 기존 이미지 삭제
         if (row.deletedImages && row.deletedImages.length > 0) {
           try {
             for (const img of row.deletedImages) {
-
-              await api.delete(
-                "/Business/CarFileDelete",
-                {
-                  params: {
-                    car_number: selectedCar,
-                    service_dt: row.service_dt,
-                    image_id: img.image_id,          // ✅ 이미지별 id
-                    image_path: img.image_path,      // 필요하면 사용
-                    exterior_image: img.exterior_image, // 필요하면 사용
-                    user_id,
-                  },
-                }
-              );
+              await api.delete("/Business/CarFileDelete", {
+                params: {
+                  car_number: selectedCar,
+                  service_dt: row.service_dt,
+                  image_id: img.image_id,
+                  image_path: img.image_path,
+                  exterior_image: img.exterior_image,
+                  user_id,
+                },
+              });
             }
           } catch (err) {
             console.error("이미지 삭제 실패:", err);
@@ -447,9 +437,7 @@ function CorCarTabStyled() {
           }
         }
 
-        // ============================
         // (2) 새로 추가된 이미지 업로드
-        // ============================
         if (row.pendingFiles && row.pendingFiles.length > 0) {
           const formData = new FormData();
           formData.append("car_number", selectedCar);
@@ -465,13 +453,10 @@ function CorCarTabStyled() {
           });
         }
 
-        // ============================
-        // (3) 정비 데이터 저장 (CarSave)
-        // ============================
+        // (3) 정비 데이터 저장
         if (hasFieldChanges) {
           const saveRow = { ...row };
 
-          // 숫자 포맷 정리
           if (saveRow.service_amt) {
             saveRow.service_amt = saveRow.service_amt.toString().replace(/,/g, "");
           }
@@ -479,16 +464,13 @@ function CorCarTabStyled() {
             saveRow.mileage = saveRow.mileage.toString().replace(/,/g, "");
           }
 
-          // 프론트 전용 필드 제거
           delete saveRow.images;
           delete saveRow.pendingFiles;
           delete saveRow.deletedImages;
 
-          // 차량번호 + user_id 세팅
           saveRow.car_number = selectedCar;
           saveRow.user_id = user_id;
 
-          // CarSave 가 배열을 받는 구조라면 한 건만 담아서 전송
           await api.post("/Business/CarSave", [saveRow], {
             headers: {
               "Content-Type": "application/json",
@@ -497,9 +479,6 @@ function CorCarTabStyled() {
         }
       }
 
-      // ============================
-      // (4) pendingFiles 미리보기 URL 정리
-      // ============================
       rows.forEach((row) =>
         (row.pendingFiles || []).forEach((pf) => {
           if (pf.previewUrl) URL.revokeObjectURL(pf.previewUrl);
@@ -508,11 +487,7 @@ function CorCarTabStyled() {
 
       await Swal.fire("저장 완료", "모든 변경이 저장되었습니다.", "success");
 
-      // ============================
-      // (5) 서버 기준으로 다시 조회해서 상태 초기화
-      // ============================
       await fetchCarList(selectedCar);
-      // fetchCarList → carListRows 갱신 → useEffect에서 rows / originalRows 다시 세팅됨
     } catch (e) {
       Swal.fire("저장 실패", e.message || e, "error");
     }
@@ -520,33 +495,36 @@ function CorCarTabStyled() {
 
   const columns = useMemo(
     () => [
-      { header: "날짜", accessorKey: "service_dt", size: 100 },
-      { header: "정비내용", accessorKey: "service_note", size: 300 },
-      { header: "정비시\n주행거리", accessorKey: "mileage", size: 80 },
-      { header: "정비 비용", accessorKey: "service_amt", size: 80 },
-      { header: "정비시 특이사항", accessorKey: "comment", size: 350 },
-      { header: "외관 이미지", accessorKey: "exterior_image", size: 260 },
-      { header: "외관내용", accessorKey: "exterior_note", size: 350 },
+      { header: "날짜", accessorKey: "service_dt", size: isMobile ? 80 : 100 },
+      { header: "정비내용", accessorKey: "service_note", size: isMobile ? 220 : 300 },
+      { header: "정비시\n주행거리", accessorKey: "mileage", size: isMobile ? 70 : 80 },
+      { header: "정비 비용", accessorKey: "service_amt", size: isMobile ? 70 : 80 },
+      { header: "정비시 특이사항", accessorKey: "comment", size: isMobile ? 230 : 350 },
+      { header: "외관 이미지", accessorKey: "exterior_image", size: isMobile ? 220 : 260 },
+      { header: "외관내용", accessorKey: "exterior_note", size: isMobile ? 230 : 350 },
     ],
-    []
+    [isMobile]
   );
 
   if (loading) return <LoadingScreen />;
 
   return (
     <>
-      <MDBox 
-        pt={1} 
-        pb={1} 
-        gap={1} 
-        sx={{ 
-          display: "flex", 
-          justifyContent: "flex-end",
+      {/* 상단 차량 선택 + 버튼 영역 - 모바일에서 줄바꿈 */}
+      <MDBox
+        pt={1}
+        pb={1}
+        gap={1}
+        sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          flexWrap: isMobile ? "wrap" : "nowrap",
           position: "sticky",
           zIndex: 10,
           top: 78,
           backgroundColor: "#ffffff",
-          }}
+        }}
       >
         {carSelectList.length > 0 && (
           <TextField
@@ -554,7 +532,7 @@ function CorCarTabStyled() {
             size="small"
             value={selectedCar}
             onChange={(e) => setSelectedCar(e.target.value)}
-            sx={{ minWidth: 150 }}
+            sx={{ minWidth: isMobile ? 140 : 150 }}
             SelectProps={{ native: true }}
           >
             {carSelectList.map((car) => (
@@ -565,35 +543,41 @@ function CorCarTabStyled() {
           </TextField>
         )}
 
-        <MDButton variant="gradient" color="info" onClick={handleAddRow}>
-          행 추가
-        </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleModalOpen}>
-          차량등록
-        </MDButton>
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
-          저장
-        </MDButton>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            flexWrap: isMobile ? "wrap" : "nowrap",
+          }}
+        >
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleAddRow}
+            sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 70 : undefined }}
+          >
+            행 추가
+          </MDButton>
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleModalOpen}
+            sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 70 : undefined }}
+          >
+            차량등록
+          </MDButton>
+          <MDButton
+            variant="gradient"
+            color="info"
+            onClick={handleSave}
+            sx={{ fontSize: isMobile ? "11px" : "13px", minWidth: isMobile ? 70 : undefined }}
+          >
+            저장
+          </MDButton>
+        </Box>
       </MDBox>
 
       <MDBox pt={1} pb={3} sx={tableSx}>
-        {/* <MDBox
-          mx={0}
-          mt={-3}
-          py={1}
-          px={2}
-          variant="gradient"
-          bgColor="info"
-          borderRadius="lg"
-          coloredShadow="info"
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-        >
-          <MDTypography variant="h6" color="white">
-            법인차량 관리
-          </MDTypography>
-        </MDBox> */}
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <table>
@@ -611,7 +595,7 @@ function CorCarTabStyled() {
                       const value = row[col.accessorKey] || "";
 
                       // ===========================
-                      // 외관 이미지 열: 다중 업로드 + 삭제 + 썸네일
+                      // 외관 이미지 열
                       // ===========================
                       if (col.accessorKey === "exterior_image") {
                         const images = row.images || [];
@@ -634,7 +618,7 @@ function CorCarTabStyled() {
                                 gap: 1,
                               }}
                             >
-                              {/* 기존 이미지 목록 (썸네일 + 파일명 + 다운로드 + 삭제토글) */}
+                              {/* 기존 이미지 목록 */}
                               <Box
                                 sx={{
                                   display: "grid",
@@ -661,7 +645,6 @@ function CorCarTabStyled() {
                                         filter: isDeleted ? "blur(1px)" : "none",
                                       }}
                                     >
-                                      {/* 썸네일 */}
                                       <Box
                                         sx={{
                                           width: "100%",
@@ -683,7 +666,6 @@ function CorCarTabStyled() {
                                           }}
                                         />
                                       </Box>
-                                      {/* 파일명 */}
                                       <button
                                         type="button"
                                         onClick={() => openPreview(rowIndex, imgIndex)}
@@ -702,7 +684,6 @@ function CorCarTabStyled() {
                                       >
                                         {img.image_name}
                                       </button>
-                                      {/* 버튼 영역 */}
                                       <Box
                                         sx={{
                                           display: "flex",
@@ -807,7 +788,7 @@ function CorCarTabStyled() {
                                 ))}
                               </Box>
 
-                              {/* 파일 선택 (다중 / 최대 5장 안내) */}
+                              {/* 파일 선택 */}
                               <div>
                                 <input
                                   type="file"
@@ -928,11 +909,11 @@ function CorCarTabStyled() {
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%)",
-              width: 500,
+              width: isMobile ? "90%" : 500,
               bgcolor: "background.paper",
               borderRadius: 2,
               boxShadow: 24,
-              p: 5,
+              p: isMobile ? 3 : 5,
             }}
           >
             <Typography variant="h6" gutterBottom>
@@ -976,18 +957,17 @@ function CorCarTabStyled() {
         </Modal>
       </MDBox>
 
-      {/* 이미지 미리보기 Dialog (기존 images만) */}
-      <Dialog open={previewOpen} onClose={handleClosePreview} maxWidth="md">
+      {/* 이미지 미리보기 Dialog */}
+      <Dialog open={previewOpen} onClose={handleClosePreview} maxWidth="md" fullWidth>
         <DialogContent
           sx={{
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
             position: "relative",
-            p: 2,
+            p: isMobile ? 1.5 : 2,
           }}
         >
-          {/* 이전 버튼 */}
           <IconButton
             onClick={() => setCurrentIndex((prev) => Math.max(prev - 1, 0))}
             disabled={currentIndex === 0}
@@ -1003,23 +983,21 @@ function CorCarTabStyled() {
               },
             }}
           >
-            <ChevronLeft size={32} />
+            <ChevronLeft size={isMobile ? 24 : 32} />
           </IconButton>
 
-          {/* 이미지 */}
           {previewList.length > 0 && (
             <img
               src={previewList[currentIndex].url}
               alt={previewList[currentIndex].name || "preview"}
               style={{
                 maxWidth: "100%",
-                maxHeight: "80vh",
+                maxHeight: isMobile ? "70vh" : "80vh",
                 objectFit: "contain",
               }}
             />
           )}
 
-          {/* 다음 버튼 */}
           <IconButton
             onClick={() =>
               setCurrentIndex((prev) =>
@@ -1039,7 +1017,7 @@ function CorCarTabStyled() {
               },
             }}
           >
-            <ChevronRight size={32} />
+            <ChevronRight size={isMobile ? 24 : 32} />
           </IconButton>
         </DialogContent>
       </Dialog>

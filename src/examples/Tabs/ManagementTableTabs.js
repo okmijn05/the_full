@@ -32,7 +32,7 @@ function ManagementTableTabs() {
   return (
     <Card sx={{ borderRadius: "16px", boxShadow: "0px 5px 15px rgba(0,0,0,0.1)" }}>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="현장 업무 보드" />
+      <HeaderWithLogout showMenuButton title="현장 업무 보드" />
       {/* 탭 상단 */}
       <Tabs
         value={tabIndex}

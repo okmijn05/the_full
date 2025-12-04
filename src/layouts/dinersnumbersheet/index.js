@@ -94,7 +94,7 @@ function DinersNumberSheet() {
 
       // 🔹 추가 식단가 price 컬럼도 기본값 0으로 추가
       extraDietCols.forEach((col) => {
-        base[col.priceKey] = 0;
+        base[col.priceKey] = "";
       });
 
       return base;
@@ -214,7 +214,7 @@ function DinersNumberSheet() {
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
-      <HeaderWithLogout title="🍽️ 식수관리" />
+      <HeaderWithLogout showMenuButton title="🍽️ 식수관리" />
       {/* ✅ 상단 컨트롤 */}
       <MDBox pt={1} pb={1} gap={1} sx={{ display: "flex", justifyContent: "flex-end" }}>
         <Select value={year} onChange={(e) => setYear(e.target.value)} size="small">
