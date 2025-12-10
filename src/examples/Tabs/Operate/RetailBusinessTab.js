@@ -1,7 +1,17 @@
 /* eslint-disable react/function-component-definition */
 import React, { useMemo, useState, useEffect } from "react";
 import MDBox from "components/MDBox";
-import { Modal, Box, Select, MenuItem, Typography, Button, TextField } from "@mui/material";
+import {
+  Modal,
+  Box,
+  Select,
+  MenuItem,
+  Typography,
+  Button,
+  TextField,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
 import useRetailBusinessData from "./retailBusinessData";
@@ -11,6 +21,9 @@ import Swal from "sweetalert2";
 import { API_BASE_URL } from "config";
 
 function RetailBusinessTab() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const { activeRows, loading, fetcRetailBusinessList } = useRetailBusinessData();
   const [rows, setRows] = useState([]);
   const [originalRows, setOriginalRows] = useState([]);
@@ -50,11 +63,13 @@ function RetailBusinessTab() {
   // ✅ 이미지 확대
   const handleViewImage = (value) => {
     if (!value) return;
-    setViewImageSrc(typeof value === "object" ? URL.createObjectURL(value) : `${API_BASE_URL}${value}`);
+    setViewImageSrc(
+      typeof value === "object" ? URL.createObjectURL(value) : `${API_BASE_URL}${value}`
+    );
   };
   const handleCloseViewer = () => setViewImageSrc(null);
 
-  // ✅ 이미지 업로드 (folder = row.type)
+  // ✅ 이미지 업로드 (folder = retail)
   const uploadImage = async (file, typeValue, field) => {
     if (!file) return;
     try {
@@ -62,7 +77,7 @@ function RetailBusinessTab() {
       formData.append("file", file);
       formData.append("type", "account");
       formData.append("gubun", field);
-      formData.append("folder", "retail"); // ✅ accountId 대신 type 값
+      formData.append("folder", "retail"); // ✅ accountId 대신 retail 고정
 
       const res = await api.post(`/Operate/OperateImgUpload`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -162,9 +177,10 @@ function RetailBusinessTab() {
       zIndex: 10,
     },
   };
+
   // ========================== Modal 관련 시작 ==========================
-  // 모달 상태 및 항목 관리 상태
-  const [open, setOpen] = useState(false);
+  // 모달 상태
+  const [open, setOpen] = useState(false); // (현재는 사용 안 하지만 유지)
   const [open2, setOpen2] = useState(false);
 
   // 거래처 등록 부분
@@ -250,7 +266,7 @@ function RetailBusinessTab() {
       const uploadPromises = imageFields.map(async (field) => {
         const file = formData[field];
         if (!file || typeof file === "string") return file; // 이미 경로일 경우
-        
+
         try {
           const formDataToSend = new FormData();
           formDataToSend.append("file", file);
@@ -266,14 +282,14 @@ function RetailBusinessTab() {
             return res.data.image_path;
           }
         } catch (err) {
-            Swal.fire({
-              title: "실패",
-              text: err,
-              icon: "error",
-              confirmButtonColor: "#d33",
-              confirmButtonText: "확인",
-            });
-    
+          Swal.fire({
+            title: "실패",
+            text: err,
+            icon: "error",
+            confirmButtonColor: "#d33",
+            confirmButtonText: "확인",
+          });
+
           throw err;
         }
       });
@@ -315,46 +331,49 @@ function RetailBusinessTab() {
 
   return (
     <>
-      {/* ✅ 저장 버튼만 유지 (거래처 select 삭제됨) */}
-      <MDBox 
-        pt={1} 
-        pb={1} 
-        gap={1} 
-        sx={{ display: "flex", 
-          justifyContent: "flex-end",
+      {/* ✅ 상단 버튼 바 (모바일 대응) */}
+      <MDBox
+        pt={1}
+        pb={1}
+        sx={{
+          display: "flex",
+          flexWrap: isMobile ? "wrap" : "nowrap",
+          justifyContent: isMobile ? "flex-start" : "flex-end",
+          alignItems: "center",
+          gap: isMobile ? 1 : 2,
           position: "sticky",
           zIndex: 10,
           top: 78,
           backgroundColor: "#ffffff",
         }}
-        
       >
-        <MDButton variant="gradient" color="info" onClick={handleModalOpen2}>
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleModalOpen2}
+          sx={{
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
+            minWidth: isMobile ? 110 : 130,
+            px: isMobile ? 1 : 2,
+          }}
+        >
           거래처 등록
         </MDButton>
-        <MDButton color="info" onClick={handleSave}>
+        <MDButton
+          color="info"
+          onClick={handleSave}
+          sx={{
+            fontSize: isMobile ? "0.75rem" : "0.875rem",
+            minWidth: isMobile ? 70 : 90,
+            px: isMobile ? 1 : 2,
+          }}
+        >
           저장
         </MDButton>
       </MDBox>
+
       {/* ✅ 테이블 렌더 */}
       <MDBox pt={1} pb={3} sx={tableSx}>
-        {/* <MDBox
-          mx={0}
-          mt={-3}
-          py={1}
-          px={2}
-          variant="gradient"
-          bgColor="info"
-          borderRadius="lg"
-          coloredShadow="info"
-          display="flex"
-          justifyContent="space-between"
-        >
-          <MDTypography variant="h6" color="white">
-            거래처 관리
-          </MDTypography>
-        </MDBox> */}
-
         <table>
           <thead>
             <tr>
@@ -443,9 +462,9 @@ function RetailBusinessTab() {
                   return (
                     <td
                       key={key}
-                      contentEditable={key !== "account_name"}   // ✅ account_name일 경우 수정 불가
+                      contentEditable={key !== "account_name"} // ✅ account_name 수정 불가
                       suppressContentEditableWarning
-                      style={{...style, width: col.size}}
+                      style={{ ...style, width: col.size }}
                       onBlur={(e) => {
                         if (key !== "account_name") {
                           handleCellChange(rowIndex, key, e.target.innerText.trim());
@@ -461,6 +480,7 @@ function RetailBusinessTab() {
           </tbody>
         </table>
       </MDBox>
+
       {/* ✅ 이미지 확대 팝업 */}
       {viewImageSrc && (
         <div
@@ -478,9 +498,15 @@ function RetailBusinessTab() {
           }}
           onClick={handleCloseViewer}
         >
-          <img src={viewImageSrc} alt="미리보기" style={{ maxWidth: "80%", maxHeight: "80%" }} />
+          <img
+            src={viewImageSrc}
+            alt="미리보기"
+            style={{ maxWidth: "80%", maxHeight: "80%" }}
+          />
         </div>
       )}
+
+      {/* 🔹 거래처 등록 모달 */}
       <Modal open={open2} onClose={handleModalClose2}>
         <Box
           sx={{
@@ -488,7 +514,7 @@ function RetailBusinessTab() {
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: 500,
+            width: { xs: "90vw", sm: 500 },
             bgcolor: "background.paper",
             borderRadius: 2,
             boxShadow: 24,
@@ -702,6 +728,7 @@ function RetailBusinessTab() {
           </Box>
         </Box>
       </Modal>
+
       {/* 🔍 이미지 확대 미리보기 모달 */}
       <Modal open={previewOpen} onClose={handleImagePreviewClose}>
         <Box

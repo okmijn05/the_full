@@ -42,6 +42,7 @@ export default function useRecordsheetData(account_id, year, month) {
       // ✅ 직원정보
       setMemberRows(
         (memberRes.data || []).map((item) => ({
+          member_id: item.member_id,       // ✅ 추가
           name: item.name,
           position: item.position,
           employ_dispatch: item.employ_dispatch || "",
@@ -115,6 +116,7 @@ export default function useRecordsheetData(account_id, year, month) {
           name,
           account_id: firstItem.account_id || "",
           member_id: firstItem.member_id || "",
+          position: firstItem.position || "",      // ✅ 여기 추가
           days: dayValues,
           ...flatDays,
           day_default: dayValues.day_default || null,

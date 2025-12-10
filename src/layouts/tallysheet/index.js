@@ -209,10 +209,6 @@ function TallySheet() {
     const res = await api.post("/receipt-scan", formData, {
       headers: { "Content-Type": "multipart/form-data", "Accept": "application/json" },
     });
-    
-    console.log(res.data);
-
-    console.log(`일 ${dayIndex + 1} 이미지:`, file);
   };
 
   // ✅ 저장

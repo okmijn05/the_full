@@ -52,6 +52,7 @@ import TeleManager from "layouts/business/telemanager";
 import ContractManager from "layouts/accountinfosheet";
 // 운영
 import OperateTab from "layouts/operate/operatetab";
+import OperateTab_2 from "layouts/operate/operatetab_2";
 import AccountIssueManager from "layouts/operate/accountissuesheet";
 import BudgetManager from "layouts/operate/budgettablesheet";
 // 회계
@@ -201,11 +202,11 @@ const routes = [
       },
       {
         type: "collapse",
-        name: "🧑‍🔧 현장직원 관리",
-        key: "account_member",
+        name: "🧑‍🔧 현장관리",
+        key: "fieldstaff",
         //icon: <Icon fontSize="small">*</Icon>,
-        route: "/accountmembersheet",
-        component: <AccountMemberSheet />,
+        route: "/fieldstaff",
+        component: <OperateTab_2 />,
         allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
         allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
         accessMode: "AND",

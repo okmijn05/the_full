@@ -5,7 +5,7 @@ import Modal from "@mui/material/Modal";
 import IconButton from "@mui/material/IconButton";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import RefreshIcon from "@mui/icons-material/Refresh"
+import RefreshIcon from "@mui/icons-material/Refresh";
 import DatePicker from "react-datepicker";
 import { Grid, Box, MenuItem, TextField, Card } from "@mui/material";
 import MDBox from "components/MDBox";
@@ -19,7 +19,7 @@ import useAccountInfosheetData from "./data/AccountInfoSheetData";
 import PropTypes from "prop-types";
 import Swal from "sweetalert2";
 import api from "api/api";
-import { useParams } from "react-router-dom"; // ✅ 추가
+import { useParams } from "react-router-dom";
 import { API_BASE_URL } from "config";
 
 // 숫자 컬럼만 천단위 콤마 포맷
@@ -48,7 +48,6 @@ const formatNumber = (num) => {
 };
 
 function AccountInfoSheet() {
-
   // 🔹 추가 식단가 모달 상태
   const [extraDietModalOpen, setExtraDietModalOpen] = useState(false);
 
@@ -56,11 +55,20 @@ function AccountInfoSheet() {
   const [extraDiet, setExtraDiet] = useState(
     Array.from({ length: 5 }, () => ({ name: "", price: "" }))
   );
-  const { account_id: paramAccountId } = useParams(); // ✅ URL에서 account_id 받기
-  const [selectedAccountId, setSelectedAccountId] = useState(paramAccountId || ""); // 기본값 설정
+  const { account_id: paramAccountId } = useParams();
+  const [selectedAccountId, setSelectedAccountId] = useState(paramAccountId || "");
+
   const {
-    basicInfo, priceRows, etcRows, managerRows, eventRows, businessImgRows,
-    accountList, loading, saveData, fetchAllData
+    basicInfo,
+    priceRows,
+    etcRows,
+    managerRows,
+    eventRows,
+    businessImgRows,
+    accountList,
+    loading,
+    saveData,
+    fetchAllData,
   } = useAccountInfosheetData(selectedAccountId);
 
   const [isOpen, setIsOpen] = useState(false);
@@ -75,7 +83,7 @@ function AccountInfoSheet() {
       setSelectedAccountId(accountList[0].account_id);
     }
   }, [accountList, paramAccountId, selectedAccountId]);
-  
+
   // ✅ 선택된 account_id로 조회
   useEffect(() => {
     if (selectedAccountId) {
@@ -114,7 +122,7 @@ function AccountInfoSheet() {
   // 한 번에 업로드
   const handleFileUpload = async () => {
     const formData = new FormData();
-    const account_id = basicInfo.account_id; // 실제 account_id로 변경
+    const account_id = basicInfo.account_id;
     formData.append("account_id", account_id);
 
     let hasFile = false;
@@ -190,21 +198,20 @@ function AccountInfoSheet() {
         if (filePath) {
           newSelectedFiles[key] = {
             name: filePath.split("/").pop(),
-            path: filePath, // 전체 경로 저장
+            path: filePath,
           };
         }
       });
       setSelectedFiles(newSelectedFiles);
     }
 
-    // 🔹 extra_diet1~5 name/price 초기화 (⚠ priceRows[0] 기준으로 우선)
+    // 🔹 extra_diet1~5 name/price 초기화 (priceRows[0] 기준으로 우선)
     const extraSource = priceRows[0] || basicInfo || {};
 
     const extras = Array.from({ length: 5 }, (_, i) => {
       const idx = i + 1;
       return {
         name: extraSource[`extra_diet${idx}_name`] || "",
-        // price는 숫자로 들어올 수도 있으니 문자열로 변환해서 보관
         price:
           extraSource[`extra_diet${idx}_price`] !== undefined &&
           extraSource[`extra_diet${idx}_price`] !== null
@@ -213,7 +220,6 @@ function AccountInfoSheet() {
       };
     });
     setExtraDiet(extras);
-
   }, [basicInfo, priceRows, etcRows, managerRows, eventRows, businessImgRows]);
 
   // 값 변경 핸들러
@@ -224,13 +230,6 @@ function AccountInfoSheet() {
     }));
   };
 
-  // 근무일수 전용: 숫자만 허용
-  const handleWorkingDayChange = (e) => {
-    const onlyNumber = e.target.value.replace(/[^\d]/g, ""); // 숫자만 남기기
-    handleChange("working_day", onlyNumber);
-  };
-
-
   // 🔹 식단가명 변경
   const handleExtraNameChange = (index, value) => {
     setExtraDiet((prev) =>
@@ -240,7 +239,6 @@ function AccountInfoSheet() {
 
   // 🔹 식단가 가격(숫자만, 자동콤마)
   const handleExtraPriceChange = (index, rawValue) => {
-    // 숫자만 남기기
     const numeric = rawValue.replace(/[^\d]/g, "");
     setExtraDiet((prev) =>
       prev.map((item, i) => (i === index ? { ...item, price: numeric } : item))
@@ -267,7 +265,6 @@ function AccountInfoSheet() {
     return base === current ? "black" : "red";
   };
 
-
   // 달력용 MDInput (forwardRef 필수)
   const DatePickerInput = forwardRef(({ value, onClick, placeholder, field }, ref) => {
     const basicVal = basicInfo[field] ?? "";
@@ -292,9 +289,16 @@ function AccountInfoSheet() {
     );
   });
 
-  // 🔹 account_type 4 또는 5일 때만 추가 식단가 버튼/모달 사용
+  // 🔹 식단가 추가 버튼/모달 사용 여부
   const isExtraDietEnabled =
     Number(formData.account_type) === 4 || Number(formData.account_type) === 5;
+
+  // 🔹 학교 / 산업체 여부 (문자/숫자 둘 다 대응)
+  const isSchoolOrIndustry =
+    formData.account_type === "학교" ||
+    formData.account_type === "산업체" ||
+    Number(formData.account_type) === 4 ||
+    Number(formData.account_type) === 5;
 
   DatePickerInput.propTypes = {
     value: PropTypes.string,
@@ -315,62 +319,71 @@ function AccountInfoSheet() {
         }))
         .filter((item) => item.name && item.name.trim() !== "")
         .map((item) => ({
-          header: item.name,                         // th: 이름
-          accessorKey: `extra_diet${item.idx}_price`, // td: price 컬럼
+          header: item.name,
+          accessorKey: `extra_diet${item.idx}_price`,
         }));
+
+      // 🔹 공통 식단가 기본 컬럼
+      const baseDietColumns = [
+        { header: "2025년 식단가", accessorKey: "diet_price" },
+        { header: "기초 식단가", accessorKey: "basic_price" },
+        { header: "인상전 단가", accessorKey: "before_diet_price" },
+        {
+          header: "인상시점",
+          accessorKey: "after_dt",
+          cell: ({ row, getValue }) => {
+            const value = getValue();
+            const [dateValue, setDateValue] = useState(
+              value ? new Date(value) : null
+            );
+
+            return (
+              <DatePicker
+                selected={dateValue}
+                onChange={(date) => {
+                  setDateValue(date);
+                  row.original.after_dt = date
+                    ? date.toISOString().slice(0, 10)
+                    : "";
+                }}
+                dateFormat="yyyy-MM-dd"
+                customInput={
+                  <input
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      textAlign: "center",
+                      background: "transparent",
+                      color:
+                        String(row.original.after_dt) ===
+                        String(row._valuesCache.after_dt)
+                          ? "black"
+                          : "red",
+                    }}
+                  />
+                }
+              />
+            );
+          },
+        },
+      ];
+
+      // ✅ 학교 / 산업체가 아닌 경우에만 어르신/간식/직원 추가
+      if (!isSchoolOrIndustry) {
+        baseDietColumns.push(
+          { header: "어르신", accessorKey: "elderly" },
+          { header: "간식", accessorKey: "snack" },
+          { header: "직원", accessorKey: "employ" }
+        );
+      }
+
+      // ✅ 공통적으로 맨 오른쪽에 추가 식단가 컬럼들 붙이기
+      baseDietColumns.push(...extraDietColumns);
 
       return [
         {
           header: "식단가",
-          columns: [
-            { header: "2025년 식단가", accessorKey: "diet_price" },
-            { header: "기초 식단가", accessorKey: "basic_price" },
-            { header: "인상전 단가", accessorKey: "before_diet_price" },
-            // ✅ 인상시점 달력
-            {
-              header: "인상시점",
-              accessorKey: "after_dt",
-              cell: ({ row, getValue }) => {
-                const value = getValue();
-                const [dateValue, setDateValue] = useState(
-                  value ? new Date(value) : null
-                );
-
-                return (
-                  <DatePicker
-                    selected={dateValue}
-                    onChange={(date) => {
-                      setDateValue(date);
-                      row.original.after_dt = date
-                        ? date.toISOString().slice(0, 10)
-                        : "";
-                    }}
-                    dateFormat="yyyy-MM-dd"
-                    customInput={
-                      <input
-                        style={{
-                          width: "100%",
-                          border: "none",
-                          textAlign: "center",
-                          background: "transparent",
-                          color:
-                            String(row.original.after_dt) ===
-                            String(row._valuesCache.after_dt)
-                              ? "black"
-                              : "red",
-                        }}
-                      />
-                    }
-                  />
-                );
-              },
-            },
-            { header: "어르신", accessorKey: "elderly" },
-            { header: "간식", accessorKey: "snack" },
-            { header: "직원", accessorKey: "employ" },
-            // 🔹 직원 오른쪽에 추가 식단가 컬럼들 나열
-            ...extraDietColumns,
-          ],
+          columns: baseDietColumns,
         },
         {
           header: "식수인원(마감기준)",
@@ -396,7 +409,7 @@ function AccountInfoSheet() {
         },
       ];
     },
-    [extraDiet] // 🔹 extraDiet 변경 시 컬럼 재생성
+    [extraDiet, isSchoolOrIndustry]
   );
 
   const etcTableColumns = useMemo(
@@ -460,9 +473,7 @@ function AccountInfoSheet() {
             cell: ({ getValue, row, column }) => (
               <textarea
                 value={getValue() || ""}
-                onChange={(e) =>
-                  row.original[column.id] = e.target.value // 상태관리 필요시 수정
-                }
+                onChange={(e) => (row.original[column.id] = e.target.value)}
                 rows={2}
                 style={{
                   width: "100%",
@@ -508,7 +519,6 @@ function AccountInfoSheet() {
     elderly: "5%",
     snack: "5%",
     employ: "5%",
-    // 🔹 추가 식단가 가격 컬럼 폭
     extra_diet1_price: "4%",
     extra_diet2_price: "4%",
     extra_diet3_price: "4%",
@@ -545,7 +555,11 @@ function AccountInfoSheet() {
 
   // ----------------- 공통 테이블 렌더 -----------------
   const renderTable = (dataState, setDataState, tableType, columns) => {
-    const table = useReactTable({ data: dataState, columns, getCoreRowModel: getCoreRowModel() });
+    const table = useReactTable({
+      data: dataState,
+      columns,
+      getCoreRowModel: getCoreRowModel(),
+    });
 
     const getOriginal = (rowIndex, field) => {
       if (tableType === "price") return originalPrice[rowIndex]?.[field];
@@ -569,7 +583,11 @@ function AccountInfoSheet() {
           },
           "& th": { backgroundColor: "#f0f0f0" },
           "& .edited-cell": { color: "#d32f2f", fontWeight: 500 },
-          ".ReactModal__Content img": { maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain" },
+          ".ReactModal__Content img": {
+            maxWidth: "90vw",
+            maxHeight: "90vh",
+            objectFit: "contain",
+          },
         }}
       >
         <table>
@@ -600,7 +618,14 @@ function AccountInfoSheet() {
                     <td
                       key={cell.id}
                       contentEditable={
-                        !["name", "members", "work_system", "puri_type", "gas_type", "business_type"].includes(colKey)
+                        ![
+                          "name",
+                          "members",
+                          "work_system",
+                          "puri_type",
+                          "gas_type",
+                          "business_type",
+                        ].includes(colKey)
                       }
                       suppressContentEditableWarning
                       style={{
@@ -611,7 +636,14 @@ function AccountInfoSheet() {
                       }}
                       onBlur={(e) => {
                         if (
-                          ["name", "members", "work_system", "puri_type", "gas_type", "business_type"].includes(colKey)
+                          [
+                            "name",
+                            "members",
+                            "work_system",
+                            "puri_type",
+                            "gas_type",
+                            "business_type",
+                          ].includes(colKey)
                         )
                           return;
 
@@ -631,11 +663,16 @@ function AccountInfoSheet() {
                           value={currentValue ?? 0}
                           style={{
                             width: "50%",
-                            color: String(currentValue) === String(originalValue) ? "black" : "red",
+                            color:
+                              String(currentValue) === String(originalValue)
+                                ? "black"
+                                : "red",
                           }}
                           onChange={(e) => {
                             const updatedRows = dataState.map((r, idx) =>
-                              idx === rowIndex ? { ...r, [colKey]: Number(e.target.value) } : r
+                              idx === rowIndex
+                                ? { ...r, [colKey]: Number(e.target.value) }
+                                : r
                             );
                             setDataState(updatedRows);
                           }}
@@ -686,7 +723,7 @@ function AccountInfoSheet() {
   // ----------------- 전체 저장 -----------------
   const handleSave = async () => {
     const payload = { formData, priceData, etcData, managerData, eventData };
-    
+
     try {
       const res = await api.post("/Account/AccountInfoSave", payload);
       if (res.data.code === 200) {
@@ -719,15 +756,12 @@ function AccountInfoSheet() {
     }
 
     try {
-      // ✅ 추가 식단가 전용 조회
       const res = await api.get("/Business/AccountEctDietList", {
         params: { account_id: selectedAccountId },
       });
 
-      // 응답이 배열일 수도, 객체 하나일 수도 있으니 둘 다 대응
       const row = Array.isArray(res.data) ? res.data[0] || {} : res.data || {};
 
-      // 우선순위를 row → priceRows[0] → basicInfo 로 줄 수도 있음
       const extraSource = Object.keys(row).length > 0 ? row : priceRows[0] || basicInfo || {};
 
       const extras = Array.from({ length: 5 }, (_, i) => {
@@ -744,7 +778,6 @@ function AccountInfoSheet() {
 
       setExtraDiet(extras);
       setExtraDietModalOpen(true);
-
     } catch (e) {
       console.error("추가 식단가 조회 실패:", e);
       Swal.fire("오류", "추가 식단가 조회 중 오류가 발생했습니다.", "error");
@@ -753,7 +786,6 @@ function AccountInfoSheet() {
 
   const handleApplyExtraDiet = async () => {
     const payload = buildPayloadWithExtraDiet();
-    console.log(payload)
     try {
       const res = await api.post("/Business/AccountEctDietSave", payload);
       if (res.data.code === 200) {
@@ -765,10 +797,8 @@ function AccountInfoSheet() {
           confirmButtonText: "확인",
         }).then(async (result) => {
           if (result.isConfirmed) {
-            // ✅ 저장 후 전체 조회
             await fetchAllData(selectedAccountId);
 
-            // 원본도 갱신 (기존 로직 그대로 유지)
             setFormData(payload.formData);
             setOriginalBasic(payload.formData);
             setOriginalPrice([...priceData]);
@@ -785,11 +815,20 @@ function AccountInfoSheet() {
     }
   };
 
+  // if (loading) {
+  //   return (
+  //     <DashboardLayout>
+  //       <HeaderWithLogout showMenuButton title="📋 고객사 상세관리" />
+  //       <LoadingScreen />
+  //     </DashboardLayout>
+  //   );
+  // }
+
   return (
     <DashboardLayout>
       {/* 🔹 공통 헤더 사용 */}
       <HeaderWithLogout showMenuButton title="📋 고객사 상세관리" />
-      {/* 버튼's */}
+      {/* 버튼영역 */}
       <MDBox
         pt={1}
         pb={2}
@@ -803,7 +842,6 @@ function AccountInfoSheet() {
         <MDBox sx={{ display: "flex", gap: 1, alignItems: "center" }}>
           {["business_report", "business_regist", "kitchen_drawing"].map((type) => (
             <React.Fragment key={type}>
-              {/* 파일 선택 버튼 */}
               <MDButton
                 variant="gradient"
                 color="success"
@@ -816,14 +854,16 @@ function AccountInfoSheet() {
                   : "주방도면"}
               </MDButton>
 
-              {/* 파일명 input, 클릭 시 modal */}
               <MDInput
                 value={selectedFiles[type]?.name || ""}
                 readOnly
-                sx={{ width: 100, cursor: selectedFiles[type]?.path ? "pointer" : "default" }}
+                sx={{
+                  width: 100,
+                  cursor: selectedFiles[type]?.path ? "pointer" : "default",
+                }}
                 onClick={() => handleInputClick(type)}
               />
-              {/* 숨긴 input */}
+
               <input
                 type="file"
                 id={type}
@@ -832,13 +872,21 @@ function AccountInfoSheet() {
               />
             </React.Fragment>
           ))}
+
           {/* 이미지 뷰어 모달 */}
           <Modal
             open={isOpen}
             onClose={() => setIsOpen(false)}
             sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
           >
-            <Box sx={{ width: "100vw", height: "90vh", bgcolor: "rgba(0,0,0,0.9)", position: "relative" }}>
+            <Box
+              sx={{
+                width: "100vw",
+                height: "90vh",
+                bgcolor: "rgba(0,0,0,0.9)",
+                position: "relative",
+              }}
+            >
               <TransformWrapper
                 initialScale={1}
                 minScale={0.5}
@@ -847,7 +895,6 @@ function AccountInfoSheet() {
               >
                 {({ zoomIn, zoomOut, resetTransform }) => (
                   <>
-                    {/* 컨트롤 버튼 영역 */}
                     <Box
                       sx={{
                         position: "absolute",
@@ -885,7 +932,6 @@ function AccountInfoSheet() {
                       </IconButton>
                     </Box>
 
-                    {/* 이미지 영역 */}
                     <TransformComponent>
                       <img
                         src={activeImg}
@@ -903,7 +949,7 @@ function AccountInfoSheet() {
               </TransformWrapper>
             </Box>
           </Modal>
-          {/* 업로드 버튼 */}
+
           <MDButton variant="gradient" color="primary" onClick={handleFileUpload}>
             업로드
           </MDButton>
@@ -927,6 +973,7 @@ function AccountInfoSheet() {
           저장
         </MDButton>
       </MDBox>
+
       {/* 상단 기본 정보 */}
       <Card sx={{ p: 2, mb: 1 }}>
         <Grid container spacing={2}>
@@ -934,19 +981,51 @@ function AccountInfoSheet() {
           <Grid item xs={12} md={6}>
             <Grid container spacing={2}>
               {/* 업장명 + 계약기간 */}
-              <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <MDTypography sx={{ minWidth: "75px", fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>업장명</MDTypography>
+              <Grid
+                item
+                xs={12}
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
+                <MDTypography
+                  sx={{
+                    minWidth: "75px",
+                    fontSize: "13px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  업장명
+                </MDTypography>
                 <MDInput
-                  sx={{ flex: 1, fontSize: "13px", "& input": { padding: "4px 4px", color: getColor("account_name", formData.account_name) } }}
+                  sx={{
+                    flex: 1,
+                    fontSize: "13px",
+                    "& input": {
+                      padding: "4px 4px",
+                      color: getColor("account_name", formData.account_name),
+                    },
+                  }}
                   value={formData.account_name || ""}
                   onChange={(e) => handleChange("account_name", e.target.value)}
                 />
-                <MDTypography sx={{ minWidth: "75px", fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>계약기간</MDTypography>
+                <MDTypography
+                  sx={{
+                    minWidth: "75px",
+                    fontSize: "13px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  계약기간
+                </MDTypography>
                 <DatePicker
                   selected={startDate}
                   onChange={(date) => {
                     setStartDate(date);
-                    handleChange("contract_start", date ? date.toISOString().slice(0, 10) : "");
+                    handleChange(
+                      "contract_start",
+                      date ? date.toISOString().slice(0, 10) : ""
+                    );
                   }}
                   dateFormat="yyyy-MM-dd"
                   customInput={<DatePickerInput field="contract_start" />}
@@ -957,7 +1036,10 @@ function AccountInfoSheet() {
                   selected={endDate}
                   onChange={(date) => {
                     setEndDate(date);
-                    handleChange("contract_end", date ? date.toISOString().slice(0, 10) : "");
+                    handleChange(
+                      "contract_end",
+                      date ? date.toISOString().slice(0, 10) : ""
+                    );
                   }}
                   dateFormat="yyyy-MM-dd"
                   customInput={<DatePickerInput field="contract_end" />}
@@ -966,22 +1048,71 @@ function AccountInfoSheet() {
               </Grid>
 
               {/* 주소 */}
-              <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 2, paddingTop: "10px !important" }}>
-                <MDTypography sx={{ minWidth: "75px", fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>주소</MDTypography>
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  paddingTop: "10px !important",
+                }}
+              >
+                <MDTypography
+                  sx={{
+                    minWidth: "75px",
+                    fontSize: "13px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  주소
+                </MDTypography>
                 <MDInput
-                  sx={{ flex: 1, fontSize: "13px", "& input": { padding: "4px 4px", color: getColor("account_address", formData.account_address) } }}
+                  sx={{
+                    flex: 1,
+                    fontSize: "13px",
+                    "& input": {
+                      padding: "4px 4px",
+                      color: getColor(
+                        "account_address",
+                        formData.account_address
+                      ),
+                    },
+                  }}
                   value={formData.account_address || ""}
                   onChange={(e) => handleChange("account_address", e.target.value)}
                 />
                 <MDInput
-                  sx={{ flex: 1, fontSize: "13px", "& input": { padding: "4px 4px", color: getColor("account_address", formData.account_address) } }}
+                  sx={{
+                    flex: 1,
+                    fontSize: "13px",
+                    "& input": {
+                      padding: "4px 4px",
+                      color: getColor(
+                        "account_address_detail",
+                        formData.account_address_detail
+                      ),
+                    },
+                  }}
                   value={formData.account_address_detail || ""}
-                  onChange={(e) => handleChange("account_address_detail", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("account_address_detail", e.target.value)
+                  }
                 />
               </Grid>
 
               {/* 담당자1 */}
-              <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 1, paddingTop: "10px !important" }}>
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  paddingTop: "10px !important",
+                }}
+              >
                 <MDTypography
                   sx={{
                     minWidth: "65px",
@@ -1043,7 +1174,10 @@ function AccountInfoSheet() {
                   size="small"
                   value={formData.account_type || ""}
                   onChange={(e) => handleChange("account_type", e.target.value)}
-                  sx={{ width: 130, "& select": { fontSize: "13px", padding: "6px" } }}
+                  sx={{
+                    width: 130,
+                    "& select": { fontSize: "13px", padding: "6px" },
+                  }}
                 >
                   <MenuItem value={1}>위탁급식</MenuItem>
                   <MenuItem value={2}>도소매</MenuItem>
@@ -1053,7 +1187,16 @@ function AccountInfoSheet() {
               </Grid>
 
               {/* 담당자2 */}
-              <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 1, paddingTop: "10px !important" }}>
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  paddingTop: "10px !important",
+                }}
+              >
                 <MDTypography
                   sx={{
                     minWidth: "65px",
@@ -1070,11 +1213,16 @@ function AccountInfoSheet() {
                     fontSize: "13px",
                     "& input": {
                       padding: "4px 4px",
-                      color: getColor("manager_name2", formData.manager_name2),
+                      color: getColor(
+                        "manager_name2",
+                        formData.manager_name2
+                      ),
                     },
                   }}
                   value={formData.manager_name2 || ""}
-                  onChange={(e) => handleChange("manager_name2", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("manager_name2", e.target.value)
+                  }
                 />
                 <MDTypography
                   sx={{
@@ -1096,7 +1244,9 @@ function AccountInfoSheet() {
                     },
                   }}
                   value={formData.manager_tel2 || ""}
-                  onChange={(e) => handleChange("manager_tel2", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("manager_tel2", e.target.value)
+                  }
                 />
 
                 {/* ✅ meal_type 선택 */}
@@ -1115,7 +1265,10 @@ function AccountInfoSheet() {
                   size="small"
                   value={formData.meal_type || ""}
                   onChange={(e) => handleChange("meal_type", e.target.value)}
-                  sx={{ width: 130, "& select": { fontSize: "13px", padding: "6px" } }}
+                  sx={{
+                    width: 130,
+                    "& select": { fontSize: "13px", padding: "6px" },
+                  }}
                 >
                   <MenuItem value={1}>요양주간</MenuItem>
                   <MenuItem value={2}>요양직원</MenuItem>
@@ -1126,59 +1279,124 @@ function AccountInfoSheet() {
               </Grid>
 
               {/* 마감 담당자 */}
-              <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 2, paddingTop: "10px !important" }}>
-                <MDTypography sx={{ minWidth: "75px", fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>마감담당자명</MDTypography>
-                <MDInput
-                  sx={{ flex: 1, fontSize: "13px", "& input": { padding: "4px 4px", color: getColor("closing_name", formData.closing_name) } }}
-                  value={formData.closing_name || ""}
-                  onChange={(e) => handleChange("closing_name", e.target.value)}
-                />
-                <MDTypography sx={{ fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>연락처</MDTypography>
-                <MDInput
-                  sx={{ flex: 1, fontSize: "13px", "& input": { padding: "4px 4px", color: getColor("closing_tel", formData.closing_tel) } }}
-                  value={formData.closing_tel || ""}
-                  onChange={(e) => handleChange("closing_tel", e.target.value)}
-                />
-                <MDTypography sx={{ fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>근무일수</MDTypography>
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  paddingTop: "10px !important",
+                }}
+              >
+                <MDTypography
+                  sx={{
+                    minWidth: "75px",
+                    fontSize: "13px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  마감담당자명
+                </MDTypography>
                 <MDInput
                   sx={{
                     flex: 1,
                     fontSize: "13px",
                     "& input": {
                       padding: "4px 4px",
-                      color: getColor("working_day", formData.working_day),
+                      color: getColor("closing_name", formData.closing_name),
                     },
                   }}
-                  value={formData.working_day || ""}
-                  onChange={handleWorkingDayChange}      // ✅ 여기
-                  inputProps={{
-                    inputMode: "numeric",                // 모바일에서 숫자 키패드 유도
-                    pattern: "[0-9]*",
+                  value={formData.closing_name || ""}
+                  onChange={(e) => handleChange("closing_name", e.target.value)}
+                />
+                <MDTypography
+                  sx={{
+                    fontSize: "13px",
+                    textAlign: "right",
+                    fontWeight: "bold",
                   }}
+                >
+                  연락처
+                </MDTypography>
+                <MDInput
+                  sx={{
+                    flex: 1,
+                    fontSize: "13px",
+                    "& input": {
+                      padding: "4px 4px",
+                      color: getColor("closing_tel", formData.closing_tel),
+                    },
+                  }}
+                  value={formData.closing_tel || ""}
+                  onChange={(e) => handleChange("closing_tel", e.target.value)}
                 />
               </Grid>
 
               {/* 시설기기 */}
-              <Grid item xs={12} sx={{ display: "flex", alignItems: "center", gap: 2, paddingTop: "10px !important" }}>
-                <MDTypography sx={{ minWidth: "75px", fontSize: "13px", textAlign: "right", fontWeight: "bold" }}>
-                  시설기기<br />투자여부
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  paddingTop: "10px !important",
+                }}
+              >
+                <MDTypography
+                  sx={{
+                    minWidth: "75px",
+                    fontSize: "13px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  시설기기
+                  <br />
+                  투자여부
                 </MDTypography>
                 <MDInput
                   multiline
                   rows={3}
-                  sx={{ width: "80%", "& textarea": { color: getColor("property_note", formData.property_note) } }}
+                  sx={{
+                    width: "80%",
+                    "& textarea": {
+                      color: getColor("property_note", formData.property_note),
+                    },
+                  }}
                   value={formData.property_note || ""}
                   onChange={(e) => handleChange("property_note", e.target.value)}
                 />
-                <MDTypography sx={{ minWidth: "75px", fontSize: "13px", textAlign: "center", fontWeight: "bold" }}>
-                  시설기기<br />A/S기준
+                <MDTypography
+                  sx={{
+                    minWidth: "75px",
+                    fontSize: "13px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  시설기기
+                  <br />
+                  A/S기준
                 </MDTypography>
                 <MDInput
                   multiline
                   rows={3}
-                  sx={{ width: "80%", "& textarea": { color: getColor("property_as_note", formData.property_as_note) } }}
+                  sx={{
+                    width: "80%",
+                    "& textarea": {
+                      color: getColor(
+                        "property_as_note",
+                        formData.property_as_note
+                      ),
+                    },
+                  }}
                   value={formData.property_as_note || ""}
-                  onChange={(e) => handleChange("property_as_note", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("property_as_note", e.target.value)
+                  }
                 />
               </Grid>
             </Grid>
@@ -1186,48 +1404,84 @@ function AccountInfoSheet() {
 
           {/* 오른쪽 */}
           <Grid item xs={12} md={6}>
-            {priceData.some(p => p.account_type === 4) ? (
+            {priceData.some((p) => p.account_type === 4) ? (
               <Grid container spacing={2}>
-                {/* 기존 business_note 영역 반으로 줄이기 */}
                 <Grid item xs={12} md={6}>
-                  <MDTypography sx={{ fontSize: "13px", textAlign: "center", fontWeight: "bold", mb: 0 }}>
+                  <MDTypography
+                    sx={{
+                      fontSize: "13px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      mb: 0,
+                    }}
+                  >
                     영업내용 및 특이사항
                   </MDTypography>
                   <MDInput
                     multiline
                     rows={12}
-                    sx={{ width: "100%", textAlign: "center", "& textarea": { color: getColor("business_note", formData.business_note) } }}
+                    sx={{
+                      width: "100%",
+                      textAlign: "center",
+                      "& textarea": {
+                        color: getColor("business_note", formData.business_note),
+                      },
+                    }}
                     value={formData.business_note || ""}
-                    onChange={(e) => handleChange("business_note", e.target.value)}
+                    onChange={(e) =>
+                      handleChange("business_note", e.target.value)
+                    }
                   />
                 </Grid>
 
-                {/* 새로 추가할 input */}
                 <Grid item xs={12} md={6}>
-                  <MDTypography sx={{ fontSize: "13px", textAlign: "center", fontWeight: "bold", mb: 0 }}>
+                  <MDTypography
+                    sx={{
+                      fontSize: "13px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      mb: 0,
+                    }}
+                  >
                     산업체 특이사항
                   </MDTypography>
                   <MDInput
                     multiline
                     rows={12}
                     sx={{ width: "100%", textAlign: "center" }}
-                    value={formData.industry_note || ""} // formData에 새로운 필드 필요
-                    onChange={(e) => handleChange("industry_note", e.target.value)}
+                    value={formData.industry_note || ""}
+                    onChange={(e) =>
+                      handleChange("industry_note", e.target.value)
+                    }
                   />
                 </Grid>
               </Grid>
             ) : (
-              // account_type이 4가 아닌 경우 기존 그대로
               <>
-                <MDTypography sx={{ fontSize: "13px", textAlign: "center", fontWeight: "bold", mb: 0 }}>
+                <MDTypography
+                  sx={{
+                    fontSize: "13px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    mb: 0,
+                  }}
+                >
                   영업내용 및 특이사항
                 </MDTypography>
                 <MDInput
                   multiline
                   rows={12}
-                  sx={{ width: "100%", textAlign: "center", "& textarea": { color: getColor("business_note", formData.business_note) } }}
+                  sx={{
+                    width: "100%",
+                    textAlign: "center",
+                    "& textarea": {
+                      color: getColor("business_note", formData.business_note),
+                    },
+                  }}
                   value={formData.business_note || ""}
-                  onChange={(e) => handleChange("business_note", e.target.value)}
+                  onChange={(e) =>
+                    handleChange("business_note", e.target.value)
+                  }
                 />
               </>
             )}
@@ -1260,9 +1514,15 @@ function AccountInfoSheet() {
         {renderTable(priceData, setPriceData, "price", priceTableColumns)}
       </Card>
 
-      <Card sx={{ p: 1, mb: 1 }}>{renderTable(etcData, setEtcData, "etc", etcTableColumns)}</Card>
-      <Card sx={{ p: 1, mb: 1 }}>{renderTable(managerData, setManagerData, "manager", managerTableColumns)}</Card>
-      <Card sx={{ p: 1, mb: 1 }}>{renderTable(eventData, setEventData, "event", eventTableColumns)}</Card>
+      <Card sx={{ p: 1, mb: 1 }}>
+        {renderTable(etcData, setEtcData, "etc", etcTableColumns)}
+      </Card>
+      <Card sx={{ p: 1, mb: 1 }}>
+        {renderTable(managerData, setManagerData, "manager", managerTableColumns)}
+      </Card>
+      <Card sx={{ p: 1, mb: 1 }}>
+        {renderTable(eventData, setEventData, "event", eventTableColumns)}
+      </Card>
 
       {/* 🔹 추가 식단가 입력 모달 */}
       <Modal
@@ -1270,9 +1530,26 @@ function AccountInfoSheet() {
         onClose={() => setExtraDietModalOpen(false)}
         sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
       >
-        <Box sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 500, bgcolor: "background.paper", borderRadius: 2, boxShadow: 24, p: 5 }}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 500,
+            bgcolor: "background.paper",
+            borderRadius: 2,
+            boxShadow: 24,
+            p: 5,
+          }}
+        >
           <MDTypography
-            sx={{ fontSize: "15px", fontWeight: "bold", mb: 2, textAlign: "center" }}
+            sx={{
+              fontSize: "15px",
+              fontWeight: "bold",
+              mb: 2,
+              textAlign: "center",
+            }}
           >
             추가 식단가 설정
           </MDTypography>
@@ -1331,7 +1608,6 @@ function AccountInfoSheet() {
           </MDBox>
         </Box>
       </Modal>
-
     </DashboardLayout>
   );
 }

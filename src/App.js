@@ -44,7 +44,7 @@ const ProtectedRoute = ({
       confirmButtonColor: "#d33",
       confirmButtonText: "확인",
     });
-    return <Navigate to="/authentication/sign-in" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;
