@@ -240,8 +240,8 @@ function AccountMemberSheet() {
       del_note: "",
       salary: "",
       work_system: "",
-      start_time: "",
-      end_time: "",
+      start_time: startTimes?.[0] ?? "6:00",
+      end_time: endTimes?.[0] ?? "10:00",
       national_pension: "",
       health_insurance: "",
       industrial_insurance: "",
@@ -253,17 +253,6 @@ function AccountMemberSheet() {
     };
     
     setActiveRows((prev) => [newRow, ...prev]);
-    setOriginalRows((prev) => [newRow, ...prev]);
-
-    // setTimeout(() => {
-    //   if (tableContainerRef.current) {
-    //     tableContainerRef.current.scrollTo({
-    //       top: tableContainerRef.current.scrollHeight,
-    //       behavior: "smooth",
-    //     });
-    //   }
-    // }, 0);
-
     setOriginalRows((prev) => [newRow, ...prev]);
   };
 
