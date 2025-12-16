@@ -147,25 +147,25 @@ const calculateTotal = (row, accountType, extraDietCols, accountId) => {
     if (accountId === "20250819193651") {
       const breakfastVal = parseNumber(row.breakfast);
 
-      const lunchCol = extras.find((c) => ((c.name || "").trim() || "").startsWith("중식"));
-      const dinnerCol = extras.find((c) => ((c.name || "").trim() || "").startsWith("석식"));
-
-      const lunchVal = lunchCol ? parseNumber(row[lunchCol.priceKey]) : 0;
-      const dinnerVal = dinnerCol ? parseNumber(row[dinnerCol.priceKey]) : 0;
-
-      const avgMeals = avgOfExisting(breakfastVal, lunchVal, dinnerVal);
-
-      const excludedKeys = new Set(
-        [lunchCol?.priceKey, dinnerCol?.priceKey].filter(Boolean)
+      const lunchCols = extras.filter((c) =>
+        ((c.name || "").trim() || "").startsWith("중식")
+      );
+      const dinnerCols = extras.filter((c) =>
+        ((c.name || "").trim() || "").startsWith("석식")
       );
 
-      const otherSum = extras.reduce((sum, col) => {
-        if (excludedKeys.has(col.priceKey)) return sum;
-        const v = parseNumber(row[col.priceKey]);
-        return sum + v;
-      }, 0);
+      // 중식/석식이 여러 개면(혹시라도) 해당 값들을 합산해서 한 끼 값으로 처리
+      const lunchVal = lunchCols.reduce(
+        (sum, c) => sum + parseNumber(row[c.priceKey]),
+        0
+      );
+      const dinnerVal = dinnerCols.reduce(
+        (sum, c) => sum + parseNumber(row[c.priceKey]),
+        0
+      );
 
-      return Math.round(avgMeals + otherSum);
+      const avgMeals = avgOfExisting(breakfastVal, lunchVal, dinnerVal);
+      return Math.round(avgMeals);
     }
 
     // - ✅ special_yn 노출은 테이블에서만 제어, 합계 로직은 기존 유지
