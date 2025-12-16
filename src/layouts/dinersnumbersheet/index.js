@@ -1,5 +1,5 @@
 /* eslint-disable react/function-component-definition */
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dayjs from "dayjs";
 import { Select, MenuItem, TextField } from "@mui/material";
 import Grid from "@mui/material/Grid";
@@ -36,7 +36,8 @@ const SPECIAL_LAYOUT_IDS = [
   "20250819193523",
   "20250819193544",
   "20250819193634",
-  "20250819193630", // ✅ 새로 추가
+  "20250819193630",
+  "20250819193610", // ✅ 추가(직원 3칸 구조)
 ];
 
 // 🔹 숫자 컬럼 목록
@@ -76,13 +77,76 @@ const isSchoolAccount = (accountType) =>
 const isIndustryAccount = (accountType) =>
   accountType === "산업체" || accountType === "4" || accountType === 4;
 
-// ✅ 합계 계산
-const calculateTotal = (row, accountType, extraDietCols) => {
+// ✅ 평균(있는 항목만)
+// - "없으면 있는 항목들로 평균" 요구사항 반영 (0은 "없음"으로 취급)
+const avgOfExisting = (...vals) => {
+  let sum = 0;
+  let cnt = 0;
+
+  vals.forEach((v) => {
+    const n = parseNumber(v);
+    if (!Number.isNaN(n) && n > 0) {
+      sum += n;
+      cnt += 1;
+    }
+  });
+
+  return cnt > 0 ? sum / cnt : 0;
+};
+
+// ✅ 합계 계산 (account_id 별 분기 포함)
+const calculateTotal = (row, accountType, extraDietCols, accountId) => {
   const extras = Array.isArray(extraDietCols) ? extraDietCols : [];
 
-  // 🏫 / 🏭 학교 & 산업체 공통 처리
+  // =========================================================
+  // ✅ account_id별 특수 합계 규칙
+  // =========================================================
+
+  // ✅ 20250819193617: (조식/중식/석식 평균(있는 항목만)) + 직원
+  if (accountId === "20250819193617") {
+    const avgMeals = avgOfExisting(row.breakfast, row.lunch, row.dinner);
+    const employ = parseNumber(row.employ);
+    return Math.round(avgMeals + employ);
+  }
+
+  // ✅ 20250819193620: 2층 주간보호(어르신) (조/중/석 평균(있는 항목만)) + 경관식
+  // - 2층 주간보호(어르신) = daycare_breakfast/daycare_lunch/daycare_diner
+  if (accountId === "20250819193620") {
+    const avgMeals = avgOfExisting(
+      row.daycare_breakfast,
+      row.daycare_lunch,
+      row.daycare_diner
+    );
+    const ceremony = parseNumber(row.ceremony);
+    return Math.round(avgMeals + ceremony);
+  }
+
+  // ✅ 20250819193630: 평균값 + 2,3층 경관식 + 7층 경관식
+  // - 평균은 (2,3층 평균)과 (7층 평균)을 "있는 평균끼리" 평균낸 값으로 처리
+  if (accountId === "20250819193630") {
+    const avg23 = avgOfExisting(row.breakfast, row.lunch, row.dinner);
+    //const avg7 = avgOfExisting(row.breakfast2, row.lunch2, row.dinner2);
+    //const avgAll = avgOfExisting(avg23, avg7);
+    const ceremony23 = parseNumber(row.ceremony);
+    const ceremony7 = parseNumber(row.ceremony2);
+    return Math.round(avg23 + ceremony23 + ceremony7);
+  }
+
+  // ✅ 20250919162439: (조/중/석 평균) + 데이케어 중식
+  if (accountId === "20250919162439") {
+    const avgMeals = avgOfExisting(row.breakfast, row.lunch, row.dinner);
+    const daycareLunch = parseNumber(row.daycare_lunch);
+    return Math.round(avgMeals + daycareLunch);
+  }
+
+  // =========================================================
+  // 🏫 / 🏭 학교 & 산업체 공통
+  // - ✅ special_yn 노출은 테이블에서만 제어, 합계 로직은 기존 유지
+  // - ✅ 20250819193651: 기본 칼럼을 중식(lunch) -> 조식(breakfast)로 사용
+  // =========================================================
   if (isSchoolAccount(accountType) || isIndustryAccount(accountType)) {
-    const lunch = parseNumber(row.lunch);
+    const mainKey = accountId === "20250819193651" ? "breakfast" : "lunch";
+    const mainMeal = parseNumber(row[mainKey]);
 
     // 🏭 산업체 중, TH에 "간편식"/"석식" 이 있는 특수 케이스
     const hasSimpleMealCols = extras.some((col) =>
@@ -90,10 +154,11 @@ const calculateTotal = (row, accountType, extraDietCols) => {
     );
 
     if (isIndustryAccount(accountType) && hasSimpleMealCols) {
-      // 기준 이름: 중식(기본 lunch), 간편식, 석식
-      const baseNames = ["중식", "간편식(포케)", "석식"];
+      // 기본이 lunch였던 케이스 + 93651(조식) 케이스를 모두 커버
+      const baseName = mainKey === "breakfast" ? "조식" : "중식";
+      const baseNames = [baseName, "간편식(포케)", "석식"];
 
-      const baseValues = [lunch];
+      const baseValues = [mainMeal];
       let otherSum = 0;
 
       extras.forEach((col) => {
@@ -115,16 +180,18 @@ const calculateTotal = (row, accountType, extraDietCols) => {
       return Math.round(avgBase + otherSum);
     }
 
-    // 🏫 학교 + 일반 산업체 → "중식 + extraDiet 합"
+    // 🏫 학교 + 일반 산업체 → "기본 + extraDiet 합"
     const extraSum = extras.reduce((sum, col) => {
       const v = parseNumber(row[col.priceKey]);
       return sum + v;
     }, 0);
 
-    return lunch + extraSum;
+    return mainMeal + extraSum;
   }
 
-  // 🧓 그 외(요양원 등) → 기존 로직 유지
+  // =========================================================
+  // 🧓 그 외(요양원 등) 기본 로직 유지
+  // =========================================================
   const breakfast = parseNumber(row.breakfast);
   const lunch = parseNumber(row.lunch);
   const dinner = parseNumber(row.dinner);
@@ -178,9 +245,19 @@ const getTableStructure = (
   const isSchoolOrIndustry =
     selectedAccountType === "학교" || selectedAccountType === "산업체";
 
+  // ✅ 학교/산업체일 때만 특식여부(special_yn) 노출
   if (isSchoolOrIndustry) {
+    const mainKey = selectedAccountId === "20250819193651" ? "breakfast" : "lunch";
+    const mainLabel =
+      selectedAccountId === "20250819193651"
+        ? "조식"
+        : selectedAccountType === "학교"
+        ? "학생"
+        : "중식";
+
     const baseColumns = [
-      "lunch",
+      mainKey,
+      "special_yn", // ✅ 여기서만 노출
       ...extraDietCols.map((col) => col.priceKey),
       "total",
       "note",
@@ -188,7 +265,8 @@ const getTableStructure = (
 
     const headerRow = [
       { label: "구분" },
-      { label: selectedAccountType === "학교" ? "학생" : "중식" },
+      { label: mainLabel },
+      { label: "특식여부" }, // ✅ 여기서만 노출
       ...extraDietCols.map((col) => ({ label: col.name })),
       { label: "계" },
       { label: "비고" },
@@ -200,7 +278,45 @@ const getTableStructure = (
     };
   }
 
-  // 🔸 특수 배치 케이스들…
+  // =========================================================
+  // 🔸 특수 배치 케이스들
+  // =========================================================
+
+  // ✅ 20250819193610: 직원 TH 아래 조/중/석(3칸) 노출
+  if (selectedAccountId === "20250819193610") {
+    return {
+      headerRows: [
+        [
+          { label: "구분", rowSpan: 2 },
+          { label: "조식", rowSpan: 2 },
+          { label: "중식", rowSpan: 2 },
+          { label: "석식", rowSpan: 2 },
+          { label: "경관식", rowSpan: 2 },
+          { label: "직원", colSpan: 3 }, // ✅ 직원 3칸
+          { label: "계", rowSpan: 2 },
+          { label: "비고", rowSpan: 2 },
+          { label: "조식취소", rowSpan: 2 },
+          { label: "중식취소", rowSpan: 2 },
+          { label: "석식취소", rowSpan: 2 },
+        ],
+        [{ label: "조식" }, { label: "중식" }, { label: "석식" }],
+      ],
+      visibleColumns: [
+        "breakfast",
+        "lunch",
+        "dinner",
+        "ceremony",
+        "employ_breakfast",
+        "employ_lunch",
+        "employ_dinner",
+        "total",
+        "note",
+        "breakcancel",
+        "lunchcancel",
+        "dinnercancel",
+      ],
+    };
+  }
 
   if (selectedAccountId === "20250819193620") {
     return {
@@ -376,6 +492,7 @@ const getTableStructure = (
     };
   }
 
+  // ✅ 20250819193523: 특식여부 제거(학교/산업체가 아니므로 숨김)
   if (selectedAccountId === "20250819193523") {
     return {
       headerRows: [
@@ -383,7 +500,6 @@ const getTableStructure = (
           { label: "구분", rowSpan: 2 },
           { label: "조식", rowSpan: 2 },
           { label: "중식", rowSpan: 2 },
-          { label: "특식여부", rowSpan: 2 },
           { label: "석식", rowSpan: 2 },
           { label: "경관식", rowSpan: 2 },
           { label: "직원", colSpan: 2 },
@@ -398,7 +514,6 @@ const getTableStructure = (
       visibleColumns: [
         "breakfast",
         "lunch",
-        "special_yn",
         "dinner",
         "ceremony",
         "employ_breakfast",
@@ -412,6 +527,7 @@ const getTableStructure = (
     };
   }
 
+  // ✅ 20250819193544: 특식여부 제거(학교/산업체가 아니므로 숨김)
   if (selectedAccountId === "20250819193544") {
     return {
       headerRows: [
@@ -419,7 +535,6 @@ const getTableStructure = (
           { label: "구분" },
           { label: "조식" },
           { label: "중식" },
-          { label: "특식여부" },
           { label: "석식" },
           { label: "경관식" },
           { label: "주간보호 중식" },
@@ -434,7 +549,6 @@ const getTableStructure = (
       visibleColumns: [
         "breakfast",
         "lunch",
-        "special_yn",
         "dinner",
         "ceremony",
         "daycare_lunch",
@@ -531,13 +645,15 @@ const getTableStructure = (
     };
   }
 
+  // =========================================================
+  // ✅ 기본 레이아웃(학교/산업체 제외) : special_yn 숨김
+  // =========================================================
   const showDaycareLunch = isDaycareVisible;
   const showDaycareDinner = isDaycareVisible;
 
   const baseColumns = [
     "breakfast",
     "lunch",
-    "special_yn",
     "dinner",
     "ceremony",
     ...extraDietCols.map((col) => col.priceKey),
@@ -555,7 +671,6 @@ const getTableStructure = (
     { label: "구분" },
     { label: "조식" },
     { label: "중식" },
-    { label: "특식여부" },
     { label: "석식" },
     { label: "경관식" },
     ...extraDietCols.map((col) => ({ label: col.name })),
@@ -599,6 +714,16 @@ function DinersNumberSheet() {
     accountList,
   } = useDinersNumbersheetData(selectedAccountId, year, month);
 
+  // ✅ extraDietCols 레퍼런스 변동으로 originalRows가 덮이는 문제 방지
+  const extraDietSignature = useMemo(() => {
+    const arr = Array.isArray(extraDietCols) ? extraDietCols : [];
+    return arr.map((c) => `${c.priceKey}:${c.name}`).join("|");
+  }, [extraDietCols]);
+
+  const stableExtraDietCols = useMemo(() => {
+    return Array.isArray(extraDietCols) ? extraDietCols : [];
+  }, [extraDietSignature]);
+
   const isDaycareVisible =
     selectedAccountId &&
     DAYCARE_ACCOUNT_IDS.includes(selectedAccountId) &&
@@ -620,7 +745,6 @@ function DinersNumberSheet() {
   // ✅ (C) Shift+드래그 선택 → 입력창 → 일괄 적용
   // =========================================================
   const [dragSelect, setDragSelect] = useState(null);
-  // { startRow, endRow, startCol, endCol }  // colIndex는 visibleColumns 기준
 
   const selectRef = useRef({
     selecting: false,
@@ -677,7 +801,8 @@ function DinersNumberSheet() {
           rowCopy.total = calculateTotal(
             rowCopy,
             selectedAccountType,
-            extraDietCols
+            stableExtraDietCols,
+            selectedAccountId
           );
           next[r] = rowCopy;
         }
@@ -685,7 +810,7 @@ function DinersNumberSheet() {
         return next;
       });
     },
-    [setActiveRows, selectedAccountType, extraDietCols]
+    [setActiveRows, selectedAccountType, stableExtraDietCols, selectedAccountId]
   );
 
   const finishSelectionAndPrompt = useCallback(async () => {
@@ -786,7 +911,7 @@ function DinersNumberSheet() {
         special_yn: "N",
       };
 
-      extraDietCols.forEach((col) => {
+      stableExtraDietCols.forEach((col) => {
         if (!(col.priceKey in base)) base[col.priceKey] = 0;
       });
 
@@ -806,7 +931,12 @@ function DinersNumberSheet() {
       const mergedRow = found ? { ...base, ...found } : { ...base };
       return {
         ...mergedRow,
-        total: calculateTotal(mergedRow, selectedAccountType, extraDietCols),
+        total: calculateTotal(
+          mergedRow,
+          selectedAccountType,
+          stableExtraDietCols,
+          selectedAccountId
+        ),
       };
     });
 
@@ -832,9 +962,9 @@ function DinersNumberSheet() {
     selectedAccountId,
     year,
     month,
-    extraDietCols,
     loading,
     selectedAccountType,
+    extraDietSignature,
   ]);
 
   // ✅ 셀 변경 (테이블)
@@ -848,7 +978,8 @@ function DinersNumberSheet() {
               total: calculateTotal(
                 { ...row, [key]: value },
                 selectedAccountType,
-                extraDietCols
+                stableExtraDietCols,
+                selectedAccountId
               ),
             }
           : row
@@ -925,7 +1056,7 @@ function DinersNumberSheet() {
   const { headerRows, visibleColumns } = getTableStructure(
     selectedAccountId,
     isDaycareVisible,
-    extraDietCols,
+    stableExtraDietCols,
     selectedAccountType
   );
 
@@ -1079,7 +1210,6 @@ function DinersNumberSheet() {
                               suppressContentEditableWarning
                               style={{ ...style, ...selectedBg, width: "80px" }}
                               onMouseDown={(e) => {
-                                // ✅ Shift + 드래그 선택 시작 (숫자 컬럼만)
                                 if (!e.shiftKey) return;
                                 if (!isNumeric) return;
                                 if (!isEditableKey(key)) return;
@@ -1103,7 +1233,6 @@ function DinersNumberSheet() {
                                   endCol: colIndex,
                                 });
 
-                                // 테이블 밖에서 mouseup 해도 종료되게
                                 window.addEventListener(
                                   "mouseup",
                                   finishSelectionAndPrompt,
@@ -1111,7 +1240,6 @@ function DinersNumberSheet() {
                                 );
                               }}
                               onMouseEnter={() => {
-                                // ✅ 드래그 중 선택 확장
                                 if (!selectRef.current.selecting) return;
                                 if (!isNumeric) return;
 
@@ -1126,9 +1254,7 @@ function DinersNumberSheet() {
                                 });
                               }}
                               onBlur={(e) => {
-                                // ✅ 선택 중이면 blur 저장 로직이 끼어들지 않게 방지
                                 if (selectRef.current.selecting) return;
-
                                 if (isSpecial) return;
 
                                 let newValue = e.target.innerText.trim();
