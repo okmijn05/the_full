@@ -1,5 +1,5 @@
 /* eslint-disable react/function-component-definition */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
 import { Select, MenuItem, TextField } from "@mui/material";
 import Grid from "@mui/material/Grid";
@@ -77,10 +77,6 @@ const isIndustryAccount = (accountType) =>
   accountType === "산업체" || accountType === "4" || accountType === 4;
 
 // ✅ 합계 계산
-//   - 학교:    컬럼 합 (중식 + extraDiet들 합)
-//   - 산업체 20250819193647: (중식·간편식·석식 평균) + 나머지 extraDiet 합
-//   - 그 외 산업체(93645 포함): 중식 + extraDiet 합
-//   - 기타(요양원 등): 기존 (조+중+석)/3 + 경관식 (+ 필요시 extra)
 const calculateTotal = (row, accountType, extraDietCols) => {
   const extras = Array.isArray(extraDietCols) ? extraDietCols : [];
 
@@ -88,7 +84,7 @@ const calculateTotal = (row, accountType, extraDietCols) => {
   if (isSchoolAccount(accountType) || isIndustryAccount(accountType)) {
     const lunch = parseNumber(row.lunch);
 
-    // 🏭 산업체 중, TH에 "간편식"/"석식" 이 있는 특수 케이스 (93647 레이아웃)
+    // 🏭 산업체 중, TH에 "간편식"/"석식" 이 있는 특수 케이스
     const hasSimpleMealCols = extras.some((col) =>
       ["간편식", "석식"].includes((col.name || "").trim())
     );
@@ -119,7 +115,7 @@ const calculateTotal = (row, accountType, extraDietCols) => {
       return Math.round(avgBase + otherSum);
     }
 
-    // 🏫 학교 + 일반 산업체(예: 20250819193645) → "컬럼들의 합"
+    // 🏫 학교 + 일반 산업체 → "중식 + extraDiet 합"
     const extraSum = extras.reduce((sum, col) => {
       const v = parseNumber(row[col.priceKey]);
       return sum + v;
@@ -139,7 +135,6 @@ const calculateTotal = (row, accountType, extraDietCols) => {
 
   let total = baseTotal;
 
-  // 기존처럼 account_type 4/5 인 경우에만 extraDiet 더해주기 (요양원인데 4/5인 케이스 고려)
   if (
     (accountType === "4" ||
       accountType === "5" ||
@@ -314,10 +309,7 @@ const getTableStructure = (
           { label: "중식취소", rowSpan: 2 },
           { label: "석식취소", rowSpan: 2 },
         ],
-        [
-          { label: "중식" },
-          { label: "석식" },
-        ],
+        [{ label: "중식" }, { label: "석식" }],
       ],
       visibleColumns: [
         "breakfast",
@@ -401,10 +393,7 @@ const getTableStructure = (
           { label: "중식취소", rowSpan: 2 },
           { label: "석식취소", rowSpan: 2 },
         ],
-        [
-          { label: "조식" },
-          { label: "중식" },
-        ],
+        [{ label: "조식" }, { label: "중식" }],
       ],
       visibleColumns: [
         "breakfast",
@@ -475,11 +464,7 @@ const getTableStructure = (
           { label: "중식취소", rowSpan: 2 },
           { label: "석식취소", rowSpan: 2 },
         ],
-        [
-          { label: "조식" },
-          { label: "중식" },
-          { label: "석식" },
-        ],
+        [{ label: "조식" }, { label: "중식" }, { label: "석식" }],
       ],
       visibleColumns: [
         "breakfast",
@@ -595,7 +580,7 @@ function DinersNumberSheet() {
   const [year, setYear] = useState(today.year());
   const [month, setMonth] = useState(today.month() + 1);
 
-  // 👉 라우트 파라미터에서 account_id 가져오기 (RecordSheet와 동일한 패턴)
+  // 👉 라우트 파라미터에서 account_id 가져오기
   const { account_id } = useParams();
 
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -631,23 +616,121 @@ function DinersNumberSheet() {
     isWorkingDayVisible &&
     parseNumber(workingDay ?? 0) !== originalWorkingDay;
 
-  // ✅ accountList 로딩 후, URL param의 account_id를 우선 1번만 적용 (RecordSheet와 동일 로직)
+  // =========================================================
+  // ✅ (C) Shift+드래그 선택 → 입력창 → 일괄 적용
+  // =========================================================
+  const [dragSelect, setDragSelect] = useState(null);
+  // { startRow, endRow, startCol, endCol }  // colIndex는 visibleColumns 기준
+
+  const selectRef = useRef({
+    selecting: false,
+    startRow: 0,
+    startCol: 0,
+    endRow: 0,
+    endCol: 0,
+    visibleColumnsSnapshot: [],
+  });
+
+  const isEditableKey = (key) =>
+    !["total", "diner_date"].includes(key) && key !== "special_yn";
+
+  const isCellSelected = (rowIndex, colIndex, key) => {
+    if (!dragSelect) return false;
+    if (!numericCols.includes(key)) return false;
+    if (!isEditableKey(key)) return false;
+
+    const r1 = Math.min(dragSelect.startRow, dragSelect.endRow);
+    const r2 = Math.max(dragSelect.startRow, dragSelect.endRow);
+    const c1 = Math.min(dragSelect.startCol, dragSelect.endCol);
+    const c2 = Math.max(dragSelect.startCol, dragSelect.endCol);
+
+    return rowIndex >= r1 && rowIndex <= r2 && colIndex >= c1 && colIndex <= c2;
+  };
+
+  const applyFillToSelection = useCallback(
+    (fillNumber) => {
+      const s = selectRef.current;
+      const cols = s.visibleColumnsSnapshot || [];
+
+      const r1 = Math.min(s.startRow, s.endRow);
+      const r2 = Math.max(s.startRow, s.endRow);
+      const c1 = Math.min(s.startCol, s.endCol);
+      const c2 = Math.max(s.startCol, s.endCol);
+
+      const targetKeys = cols
+        .slice(c1, c2 + 1)
+        .filter((k) => numericCols.includes(k))
+        .filter((k) => isEditableKey(k));
+
+      if (targetKeys.length === 0) return;
+
+      setActiveRows((prev) => {
+        const next = prev.map((r) => ({ ...r }));
+
+        for (let r = r1; r <= r2; r += 1) {
+          const rowCopy = { ...next[r] };
+
+          targetKeys.forEach((k) => {
+            rowCopy[k] = fillNumber;
+          });
+
+          rowCopy.total = calculateTotal(
+            rowCopy,
+            selectedAccountType,
+            extraDietCols
+          );
+          next[r] = rowCopy;
+        }
+
+        return next;
+      });
+    },
+    [setActiveRows, selectedAccountType, extraDietCols]
+  );
+
+  const finishSelectionAndPrompt = useCallback(async () => {
+    const s = selectRef.current;
+    if (!s.selecting) return;
+
+    s.selecting = false;
+
+    const { isConfirmed, value } = await Swal.fire({
+      title: "값 입력",
+      text: "선택한 셀 범위에 입력할 숫자를 적어주세요.",
+      input: "text",
+      inputAttributes: { inputmode: "numeric", autocomplete: "off" },
+      showCancelButton: true,
+      confirmButtonText: "적용",
+      cancelButtonText: "취소",
+      inputValidator: (v) => {
+        const trimmed = String(v ?? "").trim();
+        if (trimmed === "") return "값을 입력하세요.";
+        const num = parseNumber(trimmed);
+        if (Number.isNaN(num)) return "숫자만 입력할 수 있어요.";
+        return undefined;
+      },
+    });
+
+    if (isConfirmed) {
+      const num = parseNumber(value);
+      applyFillToSelection(num);
+    }
+
+    setDragSelect(null);
+  }, [applyFillToSelection]);
+  // =========================================================
+
+  // ✅ accountList 로딩 후, URL param의 account_id를 우선 1번만 적용
   useEffect(() => {
     if (!accountList || accountList.length === 0) return;
 
     setSelectedAccountId((prev) => {
-      // 이미 선택된 값이 있으면(사용자가 셀렉트 변경 후 등) 건들지 않음
       if (prev) return prev;
 
-      // URL path param account_id가 있고, 실제 리스트에도 존재하면 그걸 사용
-      if (
-        account_id &&
-        accountList.some((row) => row.account_id === account_id)
-      ) {
+      if (account_id && accountList.some((row) => row.account_id === account_id)) {
         return account_id;
       }
 
-      // 아니면 첫 번째 거래처 사용
       return accountList[0].account_id;
     });
   }, [accountList, account_id]);
@@ -704,9 +787,7 @@ function DinersNumberSheet() {
       };
 
       extraDietCols.forEach((col) => {
-        if (!(col.priceKey in base)) {
-          base[col.priceKey] = 0;
-        }
+        if (!(col.priceKey in base)) base[col.priceKey] = 0;
       });
 
       return base;
@@ -732,7 +813,7 @@ function DinersNumberSheet() {
     setActiveRows(merged);
     setOriginalRows(merged.map((r) => ({ ...r })));
 
-    // 🔹 근무일수 초기값 세팅 (서버 값 있으면, 없으면 0)
+    // 🔹 근무일수 초기값 세팅
     const rowWithWorkingDay = merged.find(
       (r) => r.working_day !== undefined && r.working_day !== null
     );
@@ -741,8 +822,12 @@ function DinersNumberSheet() {
         ? parseNumber(rowWithWorkingDay.working_day)
         : 0;
 
-    setWorkingDay(initialWorkingDay.toString()); // ← 문자열
-    setOriginalWorkingDay(initialWorkingDay); // ← 숫자
+    setWorkingDay(initialWorkingDay.toString());
+    setOriginalWorkingDay(initialWorkingDay);
+
+    // ✅ 계정/기간 변경 시 드래그 선택 초기화
+    setDragSelect(null);
+    selectRef.current.selecting = false;
   }, [
     selectedAccountId,
     year,
@@ -774,7 +859,6 @@ function DinersNumberSheet() {
   // ✅ 스타일 비교 (테이블 전용)
   const getCellStyle = (rowIndex, key, value) => {
     const original = originalRows[rowIndex]?.[key];
-
     const origNorm = normalizeValueForCompare(key, original);
     const currNorm = normalizeValueForCompare(key, value);
 
@@ -868,7 +952,6 @@ function DinersNumberSheet() {
               value={workingDay}
               onChange={(e) => setWorkingDay(e.target.value)}
               onBlur={(e) => {
-                // 포커스 빠질 때 한 번 숫자로 정리
                 const num = parseNumber(e.target.value) || 0;
                 setWorkingDay(num.toString());
               }}
@@ -887,9 +970,7 @@ function DinersNumberSheet() {
 
         <Select
           value={selectedAccountId}
-          onChange={(e) => {
-            setSelectedAccountId(e.target.value); // ✅ 셀렉트 변경 시 그 값으로 재조회
-          }}
+          onChange={(e) => setSelectedAccountId(e.target.value)}
           size="small"
         >
           {(accountList || []).map((acc) => (
@@ -899,25 +980,15 @@ function DinersNumberSheet() {
           ))}
         </Select>
 
-        <Select
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-          size="small"
-        >
-          {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map(
-            (y) => (
-              <MenuItem key={y} value={y}>
-                {y}년
-              </MenuItem>
-            )
-          )}
+        <Select value={year} onChange={(e) => setYear(e.target.value)} size="small">
+          {Array.from({ length: 10 }, (_, i) => today.year() - 5 + i).map((y) => (
+            <MenuItem key={y} value={y}>
+              {y}년
+            </MenuItem>
+          ))}
         </Select>
 
-        <Select
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          size="small"
-        >
+        <Select value={month} onChange={(e) => setMonth(e.target.value)} size="small">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
             <MenuItem key={m} value={m}>
               {m}월
@@ -976,9 +1047,7 @@ function DinersNumberSheet() {
                             key={i}
                             colSpan={cell.colSpan || 1}
                             rowSpan={cell.rowSpan || 1}
-                            style={{
-                              top: rowIdx * 24,
-                            }}
+                            style={{ top: rowIdx * 24 }}
                           >
                             {cell.label}
                           </th>
@@ -986,35 +1055,91 @@ function DinersNumberSheet() {
                       </tr>
                     ))}
                   </thead>
+
                   <tbody>
                     {activeRows.map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         <td>{dayjs(row.diner_date).format("YYYY-MM-DD")}</td>
 
-                        {visibleColumns.map((key) => {
-                          const editable = !["total", "diner_date"].includes(
-                            key
-                          );
+                        {visibleColumns.map((key, colIndex) => {
+                          const editable = !["total", "diner_date"].includes(key);
                           const value = row[key] ?? "";
                           const isNumeric = numericCols.includes(key);
                           const style = getCellStyle(rowIndex, key, value);
                           const isSpecial = key === "special_yn";
+
+                          const selectedBg = isCellSelected(rowIndex, colIndex, key)
+                            ? { background: "#e3f2fd" }
+                            : {};
 
                           return (
                             <td
                               key={key}
                               contentEditable={editable && !isSpecial}
                               suppressContentEditableWarning
-                              style={{ ...style, width: "80px" }}
+                              style={{ ...style, ...selectedBg, width: "80px" }}
+                              onMouseDown={(e) => {
+                                // ✅ Shift + 드래그 선택 시작 (숫자 컬럼만)
+                                if (!e.shiftKey) return;
+                                if (!isNumeric) return;
+                                if (!isEditableKey(key)) return;
+                                if (!editable || isSpecial) return;
+
+                                e.preventDefault();
+
+                                selectRef.current.selecting = true;
+                                selectRef.current.startRow = rowIndex;
+                                selectRef.current.endRow = rowIndex;
+                                selectRef.current.startCol = colIndex;
+                                selectRef.current.endCol = colIndex;
+                                selectRef.current.visibleColumnsSnapshot = [
+                                  ...visibleColumns,
+                                ];
+
+                                setDragSelect({
+                                  startRow: rowIndex,
+                                  endRow: rowIndex,
+                                  startCol: colIndex,
+                                  endCol: colIndex,
+                                });
+
+                                // 테이블 밖에서 mouseup 해도 종료되게
+                                window.addEventListener(
+                                  "mouseup",
+                                  finishSelectionAndPrompt,
+                                  { once: true }
+                                );
+                              }}
+                              onMouseEnter={() => {
+                                // ✅ 드래그 중 선택 확장
+                                if (!selectRef.current.selecting) return;
+                                if (!isNumeric) return;
+
+                                selectRef.current.endRow = rowIndex;
+                                selectRef.current.endCol = colIndex;
+
+                                setDragSelect({
+                                  startRow: selectRef.current.startRow,
+                                  endRow: rowIndex,
+                                  startCol: selectRef.current.startCol,
+                                  endCol: colIndex,
+                                });
+                              }}
                               onBlur={(e) => {
+                                // ✅ 선택 중이면 blur 저장 로직이 끼어들지 않게 방지
+                                if (selectRef.current.selecting) return;
+
                                 if (isSpecial) return;
 
                                 let newValue = e.target.innerText.trim();
                                 if (isNumeric) newValue = parseNumber(newValue);
+
                                 handleCellChange(rowIndex, key, newValue);
-                                if (isNumeric)
+
+                                if (isNumeric) {
                                   e.currentTarget.innerText =
                                     formatNumber(newValue);
+                                }
                               }}
                             >
                               {isSpecial ? (
