@@ -122,11 +122,8 @@ const calculateTotal = (row, accountType, extraDietCols, accountId) => {
   }
 
   // ✅ 20250819193630: 평균값 + 2,3층 경관식 + 7층 경관식
-  // - 평균은 (2,3층 평균)과 (7층 평균)을 "있는 평균끼리" 평균낸 값으로 처리
   if (accountId === "20250819193630") {
     const avg23 = avgOfExisting(row.breakfast, row.lunch, row.dinner);
-    //const avg7 = avgOfExisting(row.breakfast2, row.lunch2, row.dinner2);
-    //const avgAll = avgOfExisting(avg23, avg7);
     const ceremony23 = parseNumber(row.ceremony);
     const ceremony7 = parseNumber(row.ceremony2);
     return Math.round(avg23 + ceremony23 + ceremony7);
@@ -141,10 +138,38 @@ const calculateTotal = (row, accountType, extraDietCols, accountId) => {
 
   // =========================================================
   // 🏫 / 🏭 학교 & 산업체 공통
-  // - ✅ special_yn 노출은 테이블에서만 제어, 합계 로직은 기존 유지
-  // - ✅ 20250819193651: 기본 칼럼을 중식(lunch) -> 조식(breakfast)로 사용
   // =========================================================
   if (isSchoolAccount(accountType) || isIndustryAccount(accountType)) {
+    // ✅ 20250819193651 전용:
+    // - TH에 "조식/중식*/석식"이 있을 때, (있는 값만) 평균을 계(total)에 사용
+    // - "중식", "중식(간편식)"처럼 "중식"으로 시작하면 전부 중식으로 인식
+    // - 그 외 extraDiet 컬럼들은 평균값에 더하지 않고 합산(otherSum)으로 더함
+    if (accountId === "20250819193651") {
+      const breakfastVal = parseNumber(row.breakfast);
+
+      const lunchCol = extras.find((c) => ((c.name || "").trim() || "").startsWith("중식"));
+      const dinnerCol = extras.find((c) => ((c.name || "").trim() || "").startsWith("석식"));
+
+      const lunchVal = lunchCol ? parseNumber(row[lunchCol.priceKey]) : 0;
+      const dinnerVal = dinnerCol ? parseNumber(row[dinnerCol.priceKey]) : 0;
+
+      const avgMeals = avgOfExisting(breakfastVal, lunchVal, dinnerVal);
+
+      const excludedKeys = new Set(
+        [lunchCol?.priceKey, dinnerCol?.priceKey].filter(Boolean)
+      );
+
+      const otherSum = extras.reduce((sum, col) => {
+        if (excludedKeys.has(col.priceKey)) return sum;
+        const v = parseNumber(row[col.priceKey]);
+        return sum + v;
+      }, 0);
+
+      return Math.round(avgMeals + otherSum);
+    }
+
+    // - ✅ special_yn 노출은 테이블에서만 제어, 합계 로직은 기존 유지
+    // - ✅ 20250819193651: 기본 칼럼을 중식(lunch) -> 조식(breakfast)로 사용(표시용)
     const mainKey = accountId === "20250819193651" ? "breakfast" : "lunch";
     const mainMeal = parseNumber(row[mainKey]);
 
@@ -154,7 +179,6 @@ const calculateTotal = (row, accountType, extraDietCols, accountId) => {
     );
 
     if (isIndustryAccount(accountType) && hasSimpleMealCols) {
-      // 기본이 lunch였던 케이스 + 93651(조식) 케이스를 모두 커버
       const baseName = mainKey === "breakfast" ? "조식" : "중식";
       const baseNames = [baseName, "간편식(포케)", "석식"];
 
@@ -247,7 +271,8 @@ const getTableStructure = (
 
   // ✅ 학교/산업체일 때만 특식여부(special_yn) 노출
   if (isSchoolOrIndustry) {
-    const mainKey = selectedAccountId === "20250819193651" ? "breakfast" : "lunch";
+    const mainKey =
+      selectedAccountId === "20250819193651" ? "breakfast" : "lunch";
     const mainLabel =
       selectedAccountId === "20250819193651"
         ? "조식"
@@ -257,7 +282,7 @@ const getTableStructure = (
 
     const baseColumns = [
       mainKey,
-      "special_yn", // ✅ 여기서만 노출
+      "special_yn",
       ...extraDietCols.map((col) => col.priceKey),
       "total",
       "note",
@@ -266,7 +291,7 @@ const getTableStructure = (
     const headerRow = [
       { label: "구분" },
       { label: mainLabel },
-      { label: "특식여부" }, // ✅ 여기서만 노출
+      { label: "특식여부" },
       ...extraDietCols.map((col) => ({ label: col.name })),
       { label: "계" },
       { label: "비고" },
@@ -292,7 +317,7 @@ const getTableStructure = (
           { label: "중식", rowSpan: 2 },
           { label: "석식", rowSpan: 2 },
           { label: "경관식", rowSpan: 2 },
-          { label: "직원", colSpan: 3 }, // ✅ 직원 3칸
+          { label: "직원", colSpan: 3 },
           { label: "계", rowSpan: 2 },
           { label: "비고", rowSpan: 2 },
           { label: "조식취소", rowSpan: 2 },
@@ -492,7 +517,6 @@ const getTableStructure = (
     };
   }
 
-  // ✅ 20250819193523: 특식여부 제거(학교/산업체가 아니므로 숨김)
   if (selectedAccountId === "20250819193523") {
     return {
       headerRows: [
@@ -527,7 +551,6 @@ const getTableStructure = (
     };
   }
 
-  // ✅ 20250819193544: 특식여부 제거(학교/산업체가 아니므로 숨김)
   if (selectedAccountId === "20250819193544") {
     return {
       headerRows: [
