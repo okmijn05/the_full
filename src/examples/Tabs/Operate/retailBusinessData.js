@@ -20,6 +20,7 @@ export default function useRetailBusinessData() {
 
   // 차량 정비 이력 조회
   const fetcRetailBusinessList  = async (account_id) => {
+    const startTime = Date.now();
     setLoading(true);
       try {
         const res = await api.get("/Operate/AccountRetailBusinessList", {
@@ -44,7 +45,13 @@ export default function useRetailBusinessData() {
         console.error("데이터 조회 실패:", err);
         setActiveRows([]);
       } finally {
-        setLoading(false);
+        const elapsed = Date.now() - startTime;
+        const remaining = MIN_LOADING_TIME - elapsed;
+        if (remaining > 0) {
+          setTimeout(() => setLoading(false), remaining);
+        } else {
+          setLoading(false);
+        }
       }
   };
 
