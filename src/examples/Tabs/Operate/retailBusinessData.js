@@ -39,7 +39,9 @@ export default function useRetailBusinessData() {
           bank_image: item.bank_image,
           biz_image: item.biz_image,
           del_yn: item.del_yn,
-          account_name: item.account_name
+          account_name: item.account_name,
+          add_name: item.add_name,
+          add_yn: item.add_yn
         }));
         setActiveRows(rows.map((row) => ({ ...row })));
       } catch (err) {

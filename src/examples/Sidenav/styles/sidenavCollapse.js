@@ -32,7 +32,7 @@ function collapseItem(theme, ownerState) {
     display: "flex",
     alignItems: "center",
     width: "100%",
-    padding: `${pxToRem(8)} ${pxToRem(10)}`,
+    padding: `${pxToRem(4)} ${pxToRem(5)}`,
     margin: `${pxToRem(1.5)} ${pxToRem(16)}`,
     borderRadius: borderRadius.md,
     cursor: "pointer",

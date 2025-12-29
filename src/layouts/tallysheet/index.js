@@ -10,6 +10,7 @@ import {
   TextField,
   useTheme,
   useMediaQuery,
+  Checkbox
 } from "@mui/material";
 import dayjs from "dayjs";
 import Grid from "@mui/material/Grid";
@@ -119,6 +120,32 @@ const formatBizNo = (value) => {
   if (digits.length <= 3) return a;
   if (digits.length <= 5) return `${a}-${b}`;
   return `${a}-${b}-${c}`;
+};
+
+// 연락처(휴대폰) 포맷: 010-1234-5678 / 02-123-4567 / 0505-123-4567 등 최대한 대응
+const formatPhone = (value) => {
+  const digits = onlyDigits(value).slice(0, 11); // 보통 10~11자리
+
+  // 서울 02
+  if (digits.startsWith("02")) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`; // 02-1234-5678
+  }
+
+  // 0505 같은 특수번호(4자리 국번)
+  if (digits.startsWith("0505")) {
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+    return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`; // 0505-123-4567
+  }
+
+  // 일반 휴대폰/지역번호(3자리)
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length <= 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`; // 010-123-4567
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`; // 010-1234-5678
 };
 
 // ======================== 선택 테이블 컴포넌트 ========================
@@ -490,6 +517,8 @@ function TallySheet() {
     bank_no: "",
     bank_image: null,
     biz_image: null,
+    add_yn: "N",
+    add_name: ""
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -525,6 +554,17 @@ function TallySheet() {
     setFormData((prev) => ({
       ...prev,
       [name]: files ? files[0] : value,
+    }));
+  };
+
+  const handleAddYnChange = (e) => {
+    const checked = e.target.checked;
+
+    setFormData((prev) => ({
+      ...prev,
+      add_yn: checked ? "Y" : "N",
+      // 체크 해제되면 약식명 비우기(원치 않으면 이 줄 삭제)
+      add_name: checked ? (prev.add_name || "") : "",
     }));
   };
 
@@ -565,6 +605,15 @@ function TallySheet() {
     setFormData((prev) => ({
       ...prev,
       biz_no: formatBizNo(value),
+    }));
+  };
+
+  // ✅ 연락처 입력 시 자동 포맷
+  const handleTelChange = (e) => {
+    const { value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      tel: formatPhone(value),
     }));
   };
 
@@ -947,8 +996,47 @@ function TallySheet() {
             name="name"
             value={formData.name || ""}
             onChange={handleChange2}
+            sx={{mt: 1}}
           />
+          {/* ✅ 약식사용(체크박스+라벨) + 약식명 한 줄 배치 */}
+          <Grid container spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+            {/* 왼쪽: 체크박스 + 라벨 (완전 한 줄) */}
+            <Grid item xs={4} sm={3}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Checkbox
+                  size="small"
+                  checked={(formData.add_yn || "N") === "Y"}
+                  onChange={handleAddYnChange}
+                  sx={{ p: 0.5 }} // 너무 크면 0.25로 줄여도 됨
+                />
+                <Typography
+                  sx={{
+                    fontSize: "0.8rem",
+                    lineHeight: 1,
+                    whiteSpace: "nowrap", // 라벨 줄바꿈 방지
+                  }}
+                >
+                  약식사용
+                </Typography>
+              </Box>
+            </Grid>
 
+            {/* 오른쪽: 약식명 */}
+            <Grid item xs={8} sm={9}>
+              <TextField
+                fullWidth
+                margin="none"
+                label="약식명"
+                InputLabelProps={{ style: { fontSize: "0.7rem" } }}
+                name="add_name"
+                value={formData.add_name || ""}
+                onChange={handleChange2}
+                disabled={(formData.add_yn || "N") !== "Y"}
+                placeholder="약식사용 체크 시 입력"
+                size="small"
+              />
+            </Grid>
+          </Grid>
           <TextField
             fullWidth
             required
@@ -960,6 +1048,7 @@ function TallySheet() {
             onChange={handleBizNoChange}
             placeholder="예: 123-45-67890"
             inputProps={{ inputMode: "numeric" }}
+            sx={{mt: 1}}
           />
 
           <TextField
@@ -971,6 +1060,7 @@ function TallySheet() {
             name="ceo_name"
             value={formData.ceo_name || ""}
             onChange={handleChange2}
+            sx={{mt: 1}}
           />
 
           <TextField
@@ -981,12 +1071,14 @@ function TallySheet() {
             InputLabelProps={{ style: { fontSize: "0.7rem" } }}
             name="tel"
             value={formData.tel || ""}
-            onChange={handleChange2}
+            onChange={handleTelChange}
             placeholder="예: 010-1234-5678"
+            inputProps={{ inputMode: "numeric" }}
+            sx={{ mt: 1 }}
           />
 
           {/* ✅ 은행명: Select로 변경 */}
-          <Box mt={2}>
+          <Box mt={1}>
             <Typography sx={{ fontSize: "0.8rem", mb: 0.5 }}>은행명 (필수)</Typography>
             <Select
               fullWidth
@@ -1017,6 +1109,7 @@ function TallySheet() {
                 name="bank_name"
                 value={formData.bank_name === "기타(직접입력)" ? "" : (formData.bank_name || "")}
                 onChange={handleChange2}
+                sx={{mt: 1}}
               />
             )}
           </Box>
@@ -1033,6 +1126,7 @@ function TallySheet() {
             onChange={handleBankNoChange}
             placeholder="숫자만 입력해도 자동으로 - 가 들어갑니다."
             inputProps={{ inputMode: "numeric" }}
+            sx={{mt: 1}}
           />
 
           {/* 통장사본 첨부 */}

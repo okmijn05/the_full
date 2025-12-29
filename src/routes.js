@@ -60,6 +60,8 @@ import BudgetManager from "layouts/operate/budgettablesheet";
 //import DeadlineBalance from "examples/Tabs/AccountSales/DeadlineBalanceTab";
 import AccountSales from "layouts/accountsales/accountsales";
 import PurchaseTally from "layouts/accounting/accountpurchasetally"
+import HeadOfficeCorporateCardManager from "layouts/accounting/corporatecardsheet";
+import AccountCorporateCardManager from "layouts/accounting/accountcorporatecardsheet";
 // 현장
 import TallyManager from "layouts/tallysheet";
 import RecordManager from "layouts/recordsheet";
@@ -274,6 +276,26 @@ const routes = [
         //icon: <Icon fontSize="small">*</Icon>,
         route: "/purchase/purchasetally",
         component: <PurchaseTally />,
+        allowedDepartments: [0, 2, 6],   // 🔹 부서권한
+        accessMode: "OR",
+      },
+      {
+        type: "collapse",
+        name: "💳 본사 법인카드",
+        key: "headofficecorporatecard",
+        //icon: <Icon fontSize="small">*</Icon>,
+        route: "/purchase/headofficecorporatecard",
+        component: <HeadOfficeCorporateCardManager />,
+        allowedDepartments: [0, 2, 6],   // 🔹 부서권한
+        accessMode: "OR",
+      },
+      {
+        type: "collapse",
+        name: "💳 현장 법인카드",
+        key: "accountcorporatecard",
+        //icon: <Icon fontSize="small">*</Icon>,
+        route: "/purchase/accountcorporatecard",
+        component: <AccountCorporateCardManager />,
         allowedDepartments: [0, 2, 6],   // 🔹 부서권한
         accessMode: "OR",
       },
