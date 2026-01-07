@@ -58,13 +58,17 @@ export default function useDashBoardData() {
       }))
     );
 
-  const fetchMeals = (account_id) =>
-    api.get("/Dashboard/MealList", { params: { account_id } }).then((res) =>
-      (res.data || []).map((x) => ({
-        title: x.menu || x.title || "",
-        date: x.date || "",
-      }))
-    );
+  // ✅ 여기: 오늘 날짜를 params로 함께 전달
+  const fetchMeals = (account_id) => {
+    const today = getTodayYmd();
+    return api
+      .get("HeadOffice/WeekMenuTodayList", { params: { type: 1, today: today } })
+      .then((res) =>
+        (res.data || []).map((x) => ({
+          content: x.content || x.content || "",
+        }))
+      );
+  };
 
   const fetchEducations = (account_id) =>
     api.get("/Dashboard/EducationList", { params: { account_id } }).then((res) =>

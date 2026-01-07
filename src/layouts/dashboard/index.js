@@ -79,11 +79,11 @@ function ListLines({ items, emptyText = "데이터가 없습니다." }) {
     <MDBox display="flex" flexDirection="column" gap={0.75}>
       {items.map((it, idx) => (
         <MDBox key={`${idx}-${it?.content || ""}`} display="flex" justifyContent="space-between" gap={2}>
-          <MDTypography variant="caption" color="dark" sx={{ fontWeight: 500 }}>
+          <MDTypography variant="caption" color="dark" sx={{ fontWeight: 500, whiteSpace: "pre-line" }}>
             {it.content}
           </MDTypography>
           {it.date && (
-            <MDTypography variant="caption" color="text" sx={{ opacity: 0.8, whiteSpace: "nowrap" }}>
+            <MDTypography variant="caption" color="text" sx={{ opacity: 0.8, whiteSpace: "pre-line" }}>
               {it.content}
             </MDTypography>
           )}
