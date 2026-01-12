@@ -12,17 +12,16 @@ const formatNumber = (value) => {
   return Number(value).toLocaleString();
 };
 
-// ✅ "06:00" -> "6:00" 처럼 옵션 포맷과 맞추기
+// ✅ 시간 normalize (08:00 -> 8:00 같은 형태 정리)
 const normalizeTime = (t) => {
   if (!t) return "";
-  const s = String(t).trim();
-  // 06:00, 06:30 같은 형태면 앞의 0 제거
-  return s.replace(/^0(\d):/, "$1:");
+  return String(t).trim().replace(/^0(\d):/, "$1:");
 };
 
-export default function useAccountMembersheetData(account_id, activeStatus) {
+export default function useAccountMemberCardSheetData(account_id, activeStatus) {
   const [activeRows, setActiveRows] = useState([]);
   const [originalRows, setOriginalRows] = useState([]);
+
   const [accountList, setAccountList] = useState([]);
 
   // ✅ 근무형태 리스트 + 스냅샷
@@ -31,15 +30,9 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
 
   const [loading, setLoading] = useState(false);
 
-  // ✅ work_system(조회값)이 idx인지, 문자열인지 둘 다 지원해서 idx로 정규화
-  const toWorkSystemIdx = (ws) => {
-    if (ws === null || ws === undefined || ws === "") return "";
-    const n = Number(ws);
-    if (!Number.isNaN(n) && String(ws).trim() !== "") return String(n); // 숫자/숫자문자열
-    const found = workSystemList.find((x) => String(x.work_system) === String(ws));
-    return found ? String(found.idx) : "";
-  };
-
+  // =========================
+  // 1) 직원 조회
+  // =========================
   const fetchAccountMembersAllList = async (opts = { snapshot: true }) => {
     const params = {};
     if (account_id) params.account_id = account_id;
@@ -61,22 +54,22 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
         phone: item.phone,
         address: item.address,
         contract_type: item.contract_type,
-        join_dt: item.join_dt,
         act_join_dt: item.act_join_dt,
-        ret_set_dt: item.ret_set_dt,
-        loss_major_insurances: item.loss_major_insurances,
+        salary: parseNumber(item.salary),
+        idx: item.idx,
+        start_time: normalizeTime(item.start_time),
+        end_time: normalizeTime(item.end_time),
+        employment_contract: item.employment_contract,
+        id: item.id,
+        bankbook: item.bankbook,
+        use_yn: item.use_yn,
+        note: item.note,
+
+        join_dt: item.join_dt,
         del_yn: item.del_yn,
         del_dt: item.del_dt,
         del_note: item.del_note,
-        salary: parseNumber(item.salary),
-
-        // ✅ 여기서 일단 원본 값을 넣고 (아래에서 workSystemList 있으면 idx로 매핑)
-        idx: item.idx,
-
-        // ✅ 시간 포맷 통일
-        start_time: normalizeTime(item.start_time),
-        end_time: normalizeTime(item.end_time),
-
+        loss_major_insurances: item.loss_major_insurances,
         national_pension: item.national_pension,
         health_insurance: item.health_insurance,
         industrial_insurance: item.industrial_insurance,
@@ -84,22 +77,11 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
         employment_contract: item.employment_contract,
         headoffice_note: item.headoffice_note,
         subsidy: item.subsidy,
-        note: item.note,
       }));
 
-      // ✅ workSystemList가 이미 있으면 work_system을 idx로 매핑해서 저장
-      const mappedRows =
-        workSystemList.length > 0
-          ? rows.map((r) => ({
-              ...r,
-              work_system: toWorkSystemIdx(r.work_system),
-            }))
-          : rows;
-
-      setActiveRows(mappedRows);
-      if (opts.snapshot) setOriginalRows(mappedRows);
-
-      return mappedRows;
+      setActiveRows(rows);
+      if (opts.snapshot) setOriginalRows(rows);
+      return rows;
     } catch (err) {
       console.error("AccountMemberAllList 조회 실패:", err);
       setActiveRows([]);
@@ -112,7 +94,9 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
     }
   };
 
-  // ✅ 업장 목록
+  // =========================
+  // 2) 업장 리스트
+  // =========================
   useEffect(() => {
     api
       .get("/Account/AccountList", { params: { account_type: "0" } })
@@ -183,10 +167,7 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
 
   const saveData = (activeData) => {
     api
-      .post("/account/membersheetSave", {
-        account_id,
-        data: activeData,
-      })
+      .post("/account/membersheetSave", { account_id, data: activeData })
       .then(() => alert("저장 성공!"))
       .catch((err) => console.error("저장 실패:", err));
   };

@@ -54,6 +54,7 @@ import ContractManager from "layouts/accountinfosheet";
 import OperateSchedule from "layouts/operate/OperateScheduleSheet";
 import OperateTab from "layouts/operate/operatetab";
 import OperateTab_2 from "layouts/operate/operatetab_2";
+import OperateTab_3 from "layouts/operate/operatetab_3";
 import AccountIssueManager from "layouts/operate/accountissuesheet";
 import BudgetManager from "layouts/operate/budgettablesheet";
 // 회계
@@ -205,13 +206,24 @@ const routes = [
         allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
         accessMode: "AND",
       },
+      // {
+      //   type: "collapse",
+      //   name: "🧑‍🔧 현장관리",
+      //   key: "fieldstaff",
+      //   //icon: <Icon fontSize="small">*</Icon>,
+      //   route: "/fieldstaff",
+      //   component: <OperateTab_2 />,
+      //   allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
+      //   allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
+      //   accessMode: "AND",
+      // },
       {
         type: "collapse",
-        name: "🧑‍🔧 현장관리",
-        key: "fieldstaff",
+        name: "🧑‍🔧 채용관리",
+        key: "fieldstaff2",
         //icon: <Icon fontSize="small">*</Icon>,
-        route: "/fieldstaff",
-        component: <OperateTab_2 />,
+        route: "/fieldstaff2",
+        component: <OperateTab_3 />,
         allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
         allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
         accessMode: "AND",

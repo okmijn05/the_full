@@ -334,6 +334,9 @@ function RecordSheet() {
       });
       return;
     }
+
+    formData.del_yn = 'N';
+
     api
       .post("/Account/AccountDispatchMemberSave", formData, {
         headers: { "Content-Type": "multipart/form-data" },

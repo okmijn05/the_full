@@ -125,6 +125,7 @@ function AccountDispatchMemberSheet() {
 
       const changedRowsWithUser = changedRows.map((row) => ({
         ...cleanRow(row),
+        type: 5,
         user_id: userId,
       }));
 

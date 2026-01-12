@@ -1,16 +1,15 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useReactTable, getCoreRowModel, flexRender } from "@tanstack/react-table";
 import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
 import MDBox from "components/MDBox";
-import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
+import MDTypography from "components/MDTypography";
 import { TextField, useTheme, useMediaQuery  } from "@mui/material";
 import Swal from "sweetalert2";
 import api from "api/api";
 import Modal from "@mui/material/Modal";
 import Box from "@mui/material/Box";
-import useAccountMembersheetData, { parseNumber, formatNumber } from "./accountMemberSheetData";
+import useAccountMemberCardSheetData, { parseNumber, formatNumber } from "./accountMemberCardSheetData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 
 function AccountMemberSheet() {
@@ -26,18 +25,16 @@ function AccountMemberSheet() {
     originalRows,
     setOriginalRows,
     accountList,
-    workSystemList, // ✅ 추가
+    workSystemList,
     originalWorkSystemList,   // ✅ 추가
     fetchWorkSystemList,      // ✅ 추가
     saveWorkSystemList,       // ✅ 추가
     saveData,
     fetchAccountMembersAllList,
-    loading: hookLoading
-  } = useAccountMembersheetData(selectedAccountId, activeStatus);
+    loading: hookLoading,
+  } = useAccountMemberCardSheetData(selectedAccountId, activeStatus);
 
-  //const [originalRows, setOriginalRows] = useState([]);
   const [loading, setLoading] = useState(true);
-
   // =========================
   // ✅ 근무형태 관리 Modal 상태
   // =========================
@@ -132,31 +129,20 @@ function AccountMemberSheet() {
   const columns = useMemo(
     () => [
       { header: "성명", accessorKey: "name", size: 50 },
-      { header: "주민번호", accessorKey: "rrn", size: 100 },
+      // { header: "주민번호", accessorKey: "rrn", size: 100 },
       { header: "업장명", accessorKey: "account_id", size: 150 },
-      { header: "직책", accessorKey: "position_type", size: 65 },
-      { header: "계좌번호", accessorKey: "account_number", size: 160 },
-      { header: "연락처", accessorKey: "phone", size: 100 },
-      { header: "주소", accessorKey: "address", size: 150 },
-      { header: "계약형태", accessorKey: "contract_type", size: 50 },
-      { header: "실입사일", accessorKey: "act_join_dt", size: 80 },
-      { header: "입사일", accessorKey: "join_dt", size: 80 },
-      { header: "퇴직정산일", accessorKey: "ret_set_dt", size: 80 },
-      { header: "4대보험 상실일", accessorKey: "loss_major_insurances", size: 80 },
-      { header: "퇴사여부", accessorKey: "del_yn", size: 80 },
-      { header: "퇴사일", accessorKey: "del_dt", size: 80 },
-      { header: "퇴사사유", accessorKey: "del_note", size: 100 },
+      
+      // { header: "계좌번호", accessorKey: "account_number", size: 160 },
+      // { header: "연락처", accessorKey: "phone", size: 100 },
+      // { header: "주소", accessorKey: "address", size: 150 },
+      // { header: "계약형태", accessorKey: "contract_type", size: 50 },
+      // { header: "실입사일", accessorKey: "act_join_dt", size: 80 },
       { header: "급여(월)", accessorKey: "salary", size: 80, cell: (info) => formatNumber(info.getValue()) },
+      { header: "직책", accessorKey: "position_type", size: 65 },
       { header: "근무형태", accessorKey: "idx", size: 100 },
       { header: "시작", accessorKey: "start_time", size: 60 },
       { header: "마감", accessorKey: "end_time", size: 60 },
-      { header: "국민연금", accessorKey: "national_pension", size: 80 },
-      { header: "건강보험", accessorKey: "health_insurance", size: 80 },
-      { header: "산재보험", accessorKey: "industrial_insurance", size: 80 },
-      { header: "고용보험", accessorKey: "employment_insurance", size: 80 },
       { header: "비고", accessorKey: "note", minWidth: 80, maxWidth: 150 },
-      { header: "본사노트", accessorKey: "headoffice_note", minWidth: 80, maxWidth: 150 },
-      { header: "지원금", accessorKey: "subsidy", minWidth: 80, maxWidth: 150 },
     ],
     []
   );
@@ -193,10 +179,10 @@ function AccountMemberSheet() {
     try {
       const userId = localStorage.getItem("user_id");
 
-
       // ⭐ 빈 문자열 제거 → null 값으로 변환
       const cleanRow = (row) => {
         const newRow = { ...row };
+
         Object.keys(newRow).forEach((key) => {
           if (newRow[key] === "" || newRow[key] === undefined) {
             newRow[key] = null;
@@ -314,41 +300,21 @@ function AccountMemberSheet() {
   };
 
   const handleAddRow = () => {
-    const defaultAccountId =
-      selectedAccountId || (accountList?.[0]?.account_id ?? "");
-
-    const defaultWorkSystemIdx = workSystemList?.[0]?.idx ? String(workSystemList[0].idx) : "";
+    const defaultAccountId = selectedAccountId || (accountList?.[0]?.account_id ?? "");
+    const ws0 = workSystemList?.[0];
 
     const newRow = {
       name: "",
-      rrn: "",
       account_id: defaultAccountId,
       position_type: 1,
-      account_number: "",
-      phone: "",
-      address: "",
-      contract_type: 1,
       join_dt: "",
-      act_join_dt: "",
-      ret_set_dt: "",
-      loss_major_insurances: "",
-      del_yn: activeStatus,
-      del_dt: "",
-      del_note: "",
       salary: "",
-      idx: defaultWorkSystemIdx,
-      start_time: workSystemList?.[0]?.start_time ? normalizeTime(workSystemList[0].start_time) : (startTimes?.[0] ?? "6:00"),
-      end_time: workSystemList?.[0]?.end_time ? normalizeTime(workSystemList[0].end_time) : (endTimes?.[0] ?? "10:00"),
-      national_pension: "",
-      health_insurance: "",
-      industrial_insurance: "",
-      employment_insurance: "",
+      idx: ws0?.idx ? String(ws0.idx) : "",
+      start_time: ws0?.start_time ?? (startTimes?.[0] ?? "6:00"),
+      end_time: ws0?.end_time ?? (endTimes?.[0] ?? "10:00"),
       note: "",
-      headoffice_note: "",
-      subsidy: "",
-      total: 0,
     };
-    
+
     setActiveRows((prev) => [newRow, ...prev]);
     setOriginalRows((prev) => [newRow, ...prev]);
   };
@@ -356,16 +322,8 @@ function AccountMemberSheet() {
   const renderTable = (table, rows, originals) => {
     const dateFields = new Set([
       "join_dt",
-      "act_join_dt",
-      "ret_set_dt",
-      "loss_major_insurances",
-      "del_dt",
-      "national_pension",
-      "health_insurance",
-      "industrial_insurance",
-      "employment_insurance",
     ]);
-    const selectFields = new Set(["position_type", "del_yn", "contract_type", "start_time", "end_time", "account_id", "idx",]);
+    const selectFields = new Set(["position_type", "start_time", "end_time", "account_id", "idx"]);
     const nonEditableCols = new Set(["diner_date", "total"]);
 
     return (
@@ -400,43 +358,6 @@ function AccountMemberSheet() {
             top: 0,
             zIndex: 2,
           },
-          "& td:nth-of-type(1), & th:nth-of-type(1)": {
-            position: "sticky",
-            left: 0,
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "& td:nth-of-type(2), & th:nth-of-type(2)": {
-            position: "sticky",
-            left: "80px",
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "& td:nth-of-type(3), & th:nth-of-type(3)": {
-            position: "sticky",
-            left: "180px",
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "& td:nth-of-type(4), & th:nth-of-type(4)": {
-            position: "sticky",
-            left: "330px",
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "& td:nth-of-type(5), & th:nth-of-type(5)": {
-            position: "sticky",
-            left: "415px",
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "& td:nth-of-type(6), & th:nth-of-type(6)": {
-            position: "sticky",
-            left: "575px",
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "thead th:nth-of-type(-n+6)": { zIndex: 5 },
           "& .edited-cell": {
             color: "#d32f2f",
             fontWeight: 500,
@@ -499,16 +420,11 @@ function AccountMemberSheet() {
                   const isSelect = selectFields.has(colKey);
                   const isDate = dateFields.has(colKey);
 
-                  const normalizeTime = (t) => {
-                    if (!t) return "";
-                    return String(t).trim().replace(/^0(\d):/, "$1:");
-                  };
-
                   const handleCellChange = (newValue) => {
                     const updatedRows = rows.map((r, idx) => {
                       if (idx !== rowIndex) return r;
 
-                      // ✅ work_system 변경 시 start/end 자동 세팅
+                      // ✅ 근무형태(idx) 변경 시 start/end 자동 세팅
                       if (colKey === "idx") {
                         const selected = (workSystemList || []).find(
                           (w) => String(w.idx) === String(newValue)
@@ -517,18 +433,17 @@ function AccountMemberSheet() {
                         return {
                           ...r,
                           idx: newValue,
-                          start_time: selected?.start_time ? normalizeTime(selected.start_time) : r.start_time,
-                          end_time: selected?.end_time ? normalizeTime(selected.end_time) : r.end_time,
+                          start_time: selected?.start_time ?? r.start_time,
+                          end_time: selected?.end_time ?? r.end_time,
                           total: calculateTotal({
                             ...r,
                             idx: newValue,
-                            start_time: selected?.start_time ? normalizeTime(selected.start_time) : r.start_time,
-                            end_time: selected?.end_time ? normalizeTime(selected.end_time) : r.end_time,
+                            start_time: selected?.start_time ?? r.start_time,
+                            end_time: selected?.end_time ?? r.end_time,
                           }),
                         };
                       }
 
-                      // ✅ 나머지는 기존 로직 유지
                       return {
                         ...r,
                         [colKey]: newValue,
@@ -545,23 +460,10 @@ function AccountMemberSheet() {
                       style={{
                         textAlign:
                           [
-                            "rrn",
-                            "account_number",
-                            "phone",
-                            "contract_type",
                             "join_dt",
-                            "act_join_dt",
-                            "ret_set_dt",
-                            "loss_major_insurances",
-                            "del_yn",
-                            "del_dt",
                             "idx",
                             "start_time",
                             "end_time",
-                            "national_pension",
-                            "health_insurance",
-                            "industrial_insurance",
-                            "employment_insurance",
                           ].includes(colKey)
                             ? "center"
                             : colKey === "salary"
@@ -589,7 +491,7 @@ function AccountMemberSheet() {
                         <select
                           value={currentValue ?? ""}
                           onChange={(e) => handleCellChange(e.target.value)}
-                          className={isChanged ? "edited-cell" : ""}
+                          className={isChanged ? "edited-cell" : ""}   // ✅ 추가
                           style={{ width: "100%", background: "transparent", cursor: "pointer", border: "none" }}
                         >
                           {colKey === "account_id" &&
@@ -598,56 +500,46 @@ function AccountMemberSheet() {
                                 {acc.account_name}
                               </option>
                             ))}
-
-                          {colKey === "idx" && (
-                            <>
-                              <option value="">선택</option>
-                              {(workSystemList || []).map((opt) => (
-                                <option key={opt.idx} value={opt.idx}>
-                                  {opt.work_system}
-                                </option>
-                              ))}
-                            </>
-                          )}
-
                           {colKey === "del_yn" &&
                             delOptions.map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label}
                               </option>
                             ))}
-
                           {colKey === "position_type" &&
                             positionOptions.map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label}
                               </option>
                             ))}
-
                           {colKey === "contract_type" &&
                             contractOptions.map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label}
                               </option>
                             ))}
-
                           {colKey === "start_time" && (
                             <>
-                              <option value="">없음</option>
+                              <option value="">없음</option> {/* value 빈값, text 없음 */}
                               {startTimes.map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
+                                <option key={t} value={t}>{t}</option>
                               ))}
                             </>
                           )}
-
                           {colKey === "end_time" && (
                             <>
-                              <option value="">없음</option>
+                              <option value="">없음</option> {/* value 빈값, text 없음 */}
                               {endTimes.map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </>
+                          )}
+                          {colKey === "idx" && (
+                            <>
+                              <option value="">선택</option>
+                              {(workSystemList || []).map((ws) => (
+                                <option key={ws.idx} value={ws.idx}>
+                                  {ws.work_system}
                                 </option>
                               ))}
                             </>
@@ -762,6 +654,7 @@ function AccountMemberSheet() {
           </Grid>
         </Grid>
       </MDBox>
+
       <Modal open={wsOpen} onClose={closeWorkSystemModal}>
         <Box
           sx={{

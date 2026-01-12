@@ -28,13 +28,15 @@ function AccountAnnualLeaveTab() {
   const {
     accountMemberRows,
     annualLeaveRows,
-    overTimeRows, // ✅ 시간외근무 데이터
+    overTimeRows,
     accountList,
+    accountWorkSystemList,           // ✅ 추가
     loading,
     fetchAccountMemberList,
     fetchAnnualLeaveList,
-    fetchOverTimeList, // ✅ 시간외근무 조회 함수
+    fetchOverTimeList,
     fetchAccountList,
+    fetchAccountMemberWorkSystemList, // ✅ 추가
   } = useAccountAnnualLeaveData();
 
   // 왼쪽: 원본 스냅샷 (수정은 안 하지만 구조 맞춰 둠)
@@ -57,13 +59,15 @@ function AccountAnnualLeaveTab() {
     cook_name: "",
   });
 
-  // ✅ 최초 로딩: 거래처 리스트 (딱 한 번만)
   useEffect(() => {
     const init = async () => {
-      await fetchAccountList();
+      await Promise.all([
+        fetchAccountList(),
+        fetchAccountMemberWorkSystemList(), // ✅ 추가
+      ]);
     };
     init();
-  }, []); // ❗ fetchAccountList 를 의존성에서 뺀다 (무한루프 방지)
+  }, []);
 
   // accountList 로딩 후 기본 선택값
   useEffect(() => {
@@ -280,7 +284,7 @@ function AccountAnnualLeaveTab() {
       //   type: "contractOptions",
       // },
       { header: "입사일자", accessorKey: "join_dt" },
-      { header: "근무형태", accessorKey: "work_system" },
+      { header: "근무형태", accessorKey: "idx" },
       { header: "시작", accessorKey: "start_time" },
       { header: "종료", accessorKey: "end_time" },
     ],
@@ -502,6 +506,17 @@ function AccountAnnualLeaveTab() {
 
                     if (col.type === "contractOptions") {
                       displayValue = getContractLabel(value);
+                    }
+
+                    const getWorkSystemLabel = (idx) => {
+                      const found = (accountWorkSystemList || []).find(
+                        (w) => String(w.idx) === String(idx)
+                      );
+                      return found ? found.work_system : (idx ?? "");
+                    };
+
+                    if (col.accessorKey === "idx") {
+                      displayValue = getWorkSystemLabel(value); // ✅ 여기서 라벨로 표시
                     }
 
                     return (

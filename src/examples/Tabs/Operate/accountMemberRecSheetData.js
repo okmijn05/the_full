@@ -1,5 +1,5 @@
 /* eslint-disable react/function-component-definition */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import api from "api/api";
 
 const parseNumber = (value) => {
@@ -20,14 +20,13 @@ const normalizeTime = (t) => {
   return s.replace(/^0(\d):/, "$1:");
 };
 
-export default function useAccountMembersheetData(account_id, activeStatus) {
+export default function useAccountMemberRecSheetData(account_id, activeStatus) {
   const [activeRows, setActiveRows] = useState([]);
   const [originalRows, setOriginalRows] = useState([]);
   const [accountList, setAccountList] = useState([]);
 
-  // ✅ 근무형태 리스트 + 스냅샷
+  // ✅ 근무형태 목록은 별도 상태로 분리
   const [workSystemList, setWorkSystemList] = useState([]);
-  const [originalWorkSystemList, setOriginalWorkSystemList] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
@@ -43,13 +42,13 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
   const fetchAccountMembersAllList = async (opts = { snapshot: true }) => {
     const params = {};
     if (account_id) params.account_id = account_id;
-    if (activeStatus) params.del_yn = activeStatus;
+    if (activeStatus) params.use_yn = activeStatus;
 
     setLoading(true);
     const start = Date.now();
 
     try {
-      const res = await api.get("/Operate/AccountMemberAllList", { params });
+      const res = await api.get("/Operate/AccountRecMemberList", { params });
 
       const rows = (res.data || []).map((item) => ({
         account_id: item.account_id,
@@ -61,29 +60,17 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
         phone: item.phone,
         address: item.address,
         contract_type: item.contract_type,
-        join_dt: item.join_dt,
         act_join_dt: item.act_join_dt,
-        ret_set_dt: item.ret_set_dt,
-        loss_major_insurances: item.loss_major_insurances,
-        del_yn: item.del_yn,
-        del_dt: item.del_dt,
-        del_note: item.del_note,
         salary: parseNumber(item.salary),
-
         // ✅ 여기서 일단 원본 값을 넣고 (아래에서 workSystemList 있으면 idx로 매핑)
         idx: item.idx,
-
         // ✅ 시간 포맷 통일
         start_time: normalizeTime(item.start_time),
         end_time: normalizeTime(item.end_time),
-
-        national_pension: item.national_pension,
-        health_insurance: item.health_insurance,
-        industrial_insurance: item.industrial_insurance,
-        employment_insurance: item.employment_insurance,
         employment_contract: item.employment_contract,
-        headoffice_note: item.headoffice_note,
-        subsidy: item.subsidy,
+        id: item.id,
+        bankbook: item.bankbook,
+        use_yn: item.use_yn,
         note: item.note,
       }));
 
@@ -101,7 +88,7 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
 
       return mappedRows;
     } catch (err) {
-      console.error("AccountMemberAllList 조회 실패:", err);
+      console.error("AccountRecMemberList 조회 실패:", err);
       setActiveRows([]);
       if (opts.snapshot) setOriginalRows([]);
       return [];
@@ -125,61 +112,49 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
       })
       .catch((err) => console.error("AccountList 조회 실패:", err));
   }, []);
-  
-  // =========================
-  // 3) 근무형태 리스트 (재조회 가능하도록 함수화)
-  // =========================
-  const fetchWorkSystemList = useCallback(async (opts = { snapshot: true }) => {
-    try {
-      const res = await api.get("/Operate/AccountMemberWorkSystemList", {
+
+  // ✅ 근무형태 목록
+  useEffect(() => {
+    api
+      .get("/Operate/AccountMemberWorkSystemList", {
         params: { account_type: "0" },
-      });
-
-      const rows = (res.data || []).map((item) => ({
-        idx: item.idx,
-        work_system: item.work_system,
-        start_time: normalizeTime(item.start_time),
-        end_time: normalizeTime(item.end_time),
-      }));
-
-      setWorkSystemList(rows);
-      if (opts.snapshot) setOriginalWorkSystemList(rows);
-      return rows;
-    } catch (err) {
-      console.error("WorkSystemList 조회 실패:", err);
-      setWorkSystemList([]);
-      if (opts.snapshot) setOriginalWorkSystemList([]);
-      return [];
-    }
+      })
+      .then((res) => {
+        const rows = (res.data || []).map((item) => ({
+          idx: item.idx,
+          work_system: item.work_system,
+          start_time: normalizeTime(item.start_time),
+          end_time: normalizeTime(item.end_time),
+        }));
+        setWorkSystemList(rows);
+      })
+      .catch((err) => console.error("WorkSystemList 조회 실패:", err));
   }, []);
 
+  // ✅ workSystemList가 늦게 로드되는 경우: 이미 조회된 activeRows의 work_system을 idx로 재매핑(변경표시 안 나게 둘 다 갱신)
   useEffect(() => {
-    fetchWorkSystemList({ snapshot: true });
-  }, [fetchWorkSystemList]);
+    if (!workSystemList.length) return;
+    if (!activeRows.length) return;
 
-  // =========================
-  // 4) 근무형태 저장 (user_id 포함)
-  // =========================
-  const saveWorkSystemList = async (rowsToSave) => {
-    // ✅ 여기 URL은 실제 서버에 맞게 바꾸면 됨
-    // ex) "/Operate/AccountMemberWorkSystemSave"
-    const userId = localStorage.getItem("user_id");
+    const needRemap = activeRows.some((r) => {
+      const v = r.work_system;
+      const n = Number(v);
+      const isNumeric = !(v === "" || v === null || v === undefined) && !Number.isNaN(n);
+      if (isNumeric) return false;
+      // 문자열이면 remap 필요
+      return true;
+    });
 
-    const cleanRow = (row) => {
-      const r = { ...row };
-      Object.keys(r).forEach((k) => {
-        if (r[k] === "" || r[k] === undefined) r[k] = null;
-      });
-      return r;
-    };
+    if (!needRemap) return;
 
-    const payload = (rowsToSave || []).map((r) => ({
-      ...cleanRow(r),
-      user_id: userId,
+    const remapped = activeRows.map((r) => ({
+      ...r,
+      work_system: toWorkSystemIdx(r.work_system),
     }));
 
-    return api.post("/Operate/AccountMemberWorkSystemSave", payload);
-  };
+    setActiveRows(remapped);
+    setOriginalRows(remapped);
+  }, [workSystemList.length]);
 
   const saveData = (activeData) => {
     api
@@ -196,16 +171,10 @@ export default function useAccountMembersheetData(account_id, activeStatus) {
     setActiveRows,
     originalRows,
     setOriginalRows,
-
     accountList,
 
+    // ✅ 추가로 export
     workSystemList,
-    setWorkSystemList,
-    originalWorkSystemList,
-    setOriginalWorkSystemList,
-
-    fetchWorkSystemList,
-    saveWorkSystemList,
 
     saveData,
     fetchAccountMembersAllList,
