@@ -52,6 +52,7 @@ export default function useAccountPurchaseTallyData() {
       const mapped = (list || []).map((item) => ({
         account_id: item.account_id,
         sale_id: item.sale_id,
+        item_id: item.item_id,
         account_name: item.account_name || "",
         saleDate: item.saleDate || "",
         name: item.name || "",

@@ -352,7 +352,8 @@ function TallySheet() {
 
       if (res.status === 200) {
         Swal.fire("완료", "영수증 확인이 완료되었습니다.", "success");
-        // TODO: 서버 응답(total/type) 반영 로직 필요하면 기존 로직 붙여넣기
+        await fetchDataRows();
+        await fetchData2Rows();
       } else if (res.status === 400) {
         Swal.fire("실패", res.data?.message || "영수증 인식에 실패했습니다.", "error");
       } else {

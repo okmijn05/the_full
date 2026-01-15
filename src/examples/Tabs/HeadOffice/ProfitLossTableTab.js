@@ -53,6 +53,7 @@ export default function ProfitLossTableTab() {
     "etc_cost",
     "utility_bills",
     "duty_secure",
+    "person_cost"
   ];
 
   // ✅ 숨길 컬럼

@@ -50,6 +50,7 @@ export default function useAccountPurchaseDeadlineData() {
 
       // 숫자 포맷 등 프론트에서 가공하고 싶다면 여기서 처리
       const mapped = (list || []).map((item) => ({
+        sale_id: item.sale_id,
         account_id: item.account_id,
         account_name: item.account_name || "",
         name: item.name || "",
@@ -57,6 +58,7 @@ export default function useAccountPurchaseDeadlineData() {
         total: formatNumber(item.total),
         vat: formatNumber(item.vat),
         taxFree: formatNumber(item.taxFree),
+        tax: formatNumber(item.tax),
         totalCash: formatNumber(item.totalCash),
         totalCard: formatNumber(item.totalCard),
         payType: String(item.payType ?? ""), // select에서 쓰기 위해 문자열화

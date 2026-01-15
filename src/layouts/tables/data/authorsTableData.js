@@ -138,11 +138,11 @@ export default function useTableData(accountType) {
     { Header: "구분", accessor: "account_type", size: "3%", align: "left" },
     { Header: "필요인원", accessor: "account_rqd_member", size: "3%", align: "center" },
     { Header: "현재인원", accessor: "account_headcount", size: "3%", align: "center" },
-    { Header: "상세보기", accessor: "info", size: "3%", align: "center" },
-    { Header: "인사기록카드", accessor: "members", size: "3%", align: "center" },
-    { Header: "출근부", accessor: "record", size: "3%", align: "center" },
+    // { Header: "상세보기", accessor: "info", size: "3%", align: "center" },
+    // { Header: "인사기록카드", accessor: "members", size: "3%", align: "center" },
+    // { Header: "출근부", accessor: "record", size: "3%", align: "center" },
     // { Header: "경관식", accessor: "ceremony", align: "center" },
-    { Header: "식수현황", accessor: "dinners", size: "3%", align: "center" },
+    // { Header: "식수현황", accessor: "dinners", size: "3%", align: "center" },
     // { Header: "재고조사", accessor: "inventory", align: "center" },
   ];
 

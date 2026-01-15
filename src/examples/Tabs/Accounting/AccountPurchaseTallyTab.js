@@ -1,6 +1,6 @@
-// src/layouts/account/AccountPurchaseDeadlineTab.js
+// src/layouts/account/AccountPurchaseTallyTab.js
 /* eslint-disable react/function-component-definition */
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Grid,
   TextField,
@@ -8,10 +8,24 @@ import {
   useMediaQuery,
   Box,
   IconButton,
-  Modal,
+  Tooltip,
+  Typography,
 } from "@mui/material";
+
+import Paper from "@mui/material/Paper";
+import Draggable from "react-draggable";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+
 import DownloadIcon from "@mui/icons-material/Download";
 import ImageSearchIcon from "@mui/icons-material/ImageSearch";
+import CloseIcon from "@mui/icons-material/Close";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
+
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
@@ -40,40 +54,53 @@ function AccountPurchaseTallyTab() {
   // 🔹 상단 거래처(사업장) select용 리스트
   const [accountList, setAccountList] = useState([]);
 
-  // 🔹 이미지 미리보기 모달 상태
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewImage, setPreviewImage] = useState("");
-
-  const handlePreviewOpen = (src) => {
-    setPreviewImage(src);
-    setPreviewOpen(true);
-  };
-
-  const handlePreviewClose = () => {
-    setPreviewOpen(false);
-    setPreviewImage("");
-  };
-
-  // 🔹 증빙자료 없을 때 클릭 시 안내
-  const handleNoImageAlert = () => {
-    Swal.fire("이미지 없음", "등록된 증빙자료가 없습니다.", "warning");
-  };
-
   // ✅ 데이터 훅 사용
-  const {
-    rows,
-    setRows,
-    originalRows,
-    loading,
-    fetchPurchaseList,
-  } = useAccountPurchaseTallyData();
+  const { rows, setRows, originalRows, loading, fetchPurchaseList } = useAccountPurchaseTallyData();
+
+  // =========================================
+  // ✅ 숫자(콤마 대상) 컬럼
+  // =========================================
+  const MONEY_KEYS = useMemo(() => ["qty", "unitPrice", "amount"], []);
+
+  const stripComma = useCallback((v) => {
+    if (v === null || v === undefined) return "";
+    return String(v).replace(/,/g, "").replace(/\s+/g, "").trim();
+  }, []);
+
+  const formatComma = useCallback(
+    (v) => {
+      const raw = stripComma(v);
+      if (raw === "") return "";
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return String(v); // 숫자 아니면 그대로
+      return num.toLocaleString("ko-KR");
+    },
+    [stripComma]
+  );
+
+  // ✅ rows가 바뀌면(조회 후) qty/unitPrice/amount 콤마 적용해서 화면에 표시
+  useEffect(() => {
+    if (!Array.isArray(rows) || rows.length === 0) return;
+
+    const formatted = rows.map((r) => {
+      const nr = { ...r };
+      MONEY_KEYS.forEach((k) => {
+        nr[k] = formatComma(nr[k]);
+      });
+      return nr;
+    });
+
+    const changed = formatted.some((r, i) =>
+      MONEY_KEYS.some((k) => String(r?.[k] ?? "") !== String(rows?.[i]?.[k] ?? ""))
+    );
+
+    if (changed) setRows(formatted);
+  }, [rows, setRows, MONEY_KEYS, formatComma]);
 
   // ✅ 최초 로딩 시: 거래처 목록 조회 + 첫 번째 거래처 자동 선택 & 자동 조회
   useEffect(() => {
     api
-      .get("/Account/AccountList", {
-        params: { account_type: "0" },
-      })
+      .get("/Account/AccountList", { params: { account_type: "0" } })
       .then((res) => {
         const list = (res.data || []).map((item) => ({
           account_id: item.account_id,
@@ -85,26 +112,20 @@ function AccountPurchaseTallyTab() {
           const firstId = list[0].account_id;
           setFilters((prev) => {
             const next = { ...prev, account_id: firstId };
-            // 🔹 첫 번째 거래처로 바로 조회
             fetchPurchaseList(next);
             return next;
           });
         }
       })
       .catch((err) => console.error("데이터 조회 실패 (AccountList):", err));
-  }, []);
+  }, []); // 의도적으로 1회
 
   // ✅ 조회조건 변경
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => {
       const next = { ...prev, [name]: value };
-
-      // 🔹 거래처 select 변경 시는 즉시 재조회 (account_id 기준)
-      if (name === "account_id") {
-        fetchPurchaseList(next);
-      }
-
+      if (name === "account_id") fetchPurchaseList(next);
       return next;
     });
   };
@@ -124,26 +145,30 @@ function AccountPurchaseTallyTab() {
 
   const getCellStyle = (rowIndex, key, value) => {
     const original = originalRows[rowIndex]?.[key];
+
+    // ✅ 숫자 컬럼은 콤마 제외하고 비교
+    if (MONEY_KEYS.includes(key)) {
+      const a = stripComma(original);
+      const b = stripComma(value);
+      return a !== b ? { color: "red" } : { color: "black" };
+    }
+
     if (typeof original === "string" && typeof value === "string") {
-      return normalize(original) !== normalize(value)
-        ? { color: "red" }
-        : { color: "black" };
+      return normalize(original) !== normalize(value) ? { color: "red" } : { color: "black" };
     }
     return original !== value ? { color: "red" } : { color: "black" };
   };
 
   const handleCellChange = (rowIndex, key, value) => {
-    setRows((prev) =>
-      prev.map((r, i) => (i === rowIndex ? { ...r, [key]: value } : r))
-    );
+    setRows((prev) => prev.map((r, i) => (i === rowIndex ? { ...r, [key]: value } : r)));
   };
 
   const tableSx = {
     flex: 1,
     minHeight: 0,
-    overflowX: "auto", // 🔹 가로 스크롤
+    overflowX: "auto",
     overflowY: "auto",
-    maxHeight: isMobile ? "calc(100vh - 260px)" : "none",
+    maxHeight: isMobile ? "calc(100vh - 260px)" : "75vh",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
@@ -161,8 +186,9 @@ function AccountPurchaseTallyTab() {
     "& th": {
       backgroundColor: "#fef6e4",
       position: "sticky",
-      top: 0,
+      top: 43,
       zIndex: 2,
+      borderCollapse: "separate",
     },
     "& input[type='text'], & input[type='date']": {
       fontSize: "12px",
@@ -189,30 +215,223 @@ function AccountPurchaseTallyTab() {
     []
   );
 
-  if (loading) return <LoadingScreen />;
+  // =========================
+  // ✅ 파일 URL 유틸 + 다운로드
+  // =========================
+  const buildFileUrl = useCallback((path) => {
+    if (!path) return "";
+    if (/^https?:\/\//i.test(path)) return path;
+    const base = String(API_BASE_URL || "").replace(/\/+$/, "");
+    const p = String(path).startsWith("/") ? path : `/${path}`;
+    return `${base}${p}`;
+  }, []);
 
-  // 🔹 미리보기용 이미지 URL (상대경로 → 절대경로)
-  const previewSrc = previewImage ? `${API_BASE_URL}${previewImage}` : "";
+  const handleDownload = useCallback(
+    (path) => {
+      if (!path || typeof path !== "string") return;
+      const url = buildFileUrl(path);
+      const filename = path.split("/").pop() || "download";
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    },
+    [buildFileUrl]
+  );
+
+  // 🔹 증빙자료 없을 때 클릭 시 안내
+  const handleNoImageAlert = () => {
+    Swal.fire("이미지 없음", "등록된 증빙자료가 없습니다.", "warning");
+  };
+
+  // ============================================================
+  // ✅ 떠있는 창(윈도우) 미리보기: 뒤 테이블 입력 가능
+  // ============================================================
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const viewerNodeRef = useRef(null);
+
+  // ✅ 테이블에 있는 영수증 이미지 목록(순서대로)
+  const imageItems = useMemo(() => {
+    return (rows || [])
+      .filter((r) => !!r?.receipt_image)
+      .map((r) => ({
+        path: r.receipt_image,
+        src: buildFileUrl(r.receipt_image),
+        title: `${r.name || ""} ${r.saleDate || ""}`.trim(),
+      }));
+  }, [rows, buildFileUrl]);
+
+  const handleViewImage = useCallback(
+    (path) => {
+      if (!path) return;
+      const idx = imageItems.findIndex((x) => x.path === path);
+      setViewerIndex(idx >= 0 ? idx : 0);
+      setViewerOpen(true);
+    },
+    [imageItems]
+  );
+
+  const handleCloseViewer = useCallback(() => setViewerOpen(false), []);
+
+  const goPrev = useCallback(() => {
+    setViewerIndex((i) => (imageItems.length ? (i - 1 + imageItems.length) % imageItems.length : 0));
+  }, [imageItems.length]);
+
+  const goNext = useCallback(() => {
+    setViewerIndex((i) => (imageItems.length ? (i + 1) % imageItems.length : 0));
+  }, [imageItems.length]);
+
+  // ✅ 이미지 목록이 바뀌면 index 보정
+  useEffect(() => {
+    if (!viewerOpen) return;
+    if (!imageItems.length) {
+      setViewerIndex(0);
+      return;
+    }
+    if (viewerIndex > imageItems.length - 1) setViewerIndex(imageItems.length - 1);
+  }, [viewerOpen, imageItems.length, viewerIndex]);
+
+  // ✅ 키보드로 이동(좌/우/ESC) - 입력 중에는 방해 안되게
+  useEffect(() => {
+    if (!viewerOpen) return;
+
+    const onKeyDown = (e) => {
+      const tag = (e.target?.tagName || "").toLowerCase();
+      const isTyping = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+      if (isTyping) return;
+
+      if (e.key === "Escape") handleCloseViewer();
+      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "ArrowRight") goNext();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewerOpen, goPrev, goNext, handleCloseViewer]);
+
+  const currentImg = imageItems[viewerIndex];
+
+  // ============================================================
+  // ✅ 저장: 수정된 행만 /Account/AccountPurchaseDetailSave 로 전송
+  //    - qty/unitPrice/amount는 콤마 제거해서 전송
+  // ============================================================
+  const SAVE_KEYS = useMemo(
+    () => ["saleDate", "name", "itemType", "qty", "unitPrice", "amount", "taxType", "receipt_image", "note"],
+    []
+  );
+
+  const isRowChanged = useCallback(
+    (orig, cur) => {
+      return SAVE_KEYS.some((k) => {
+        const a = orig?.[k];
+        const b = cur?.[k];
+
+        // ✅ 숫자 컬럼은 콤마 제외 비교
+        if (MONEY_KEYS.includes(k)) return stripComma(a) !== stripComma(b);
+
+        if (typeof a === "string" && typeof b === "string") return normalize(a) !== normalize(b);
+        return a !== b;
+      });
+    },
+    [SAVE_KEYS, MONEY_KEYS, stripComma]
+  );
+
+  const buildRowForSave = useCallback(
+    (r) => {
+      const user_id = localStorage.getItem("user_id") || "";
+      const next = { ...r };
+
+      delete next.account_name;
+
+      // ✅ item_id 반드시 포함(조회 row에 있으면 그대로, 혹시 없으면 originalRows에서 보강)
+      if (!next.item_id) next.item_id = r?.item_id || originalRows?.find((o) => o === r)?.item_id;
+      // ↑ 위 한 줄이 애매하면 아래처럼 rowIndex 기반으로 보강하는 방식이 가장 확실함(추천)
+      // (아래 "추천 방식" 참고)
+
+      MONEY_KEYS.forEach((k) => {
+        const raw = stripComma(next[k]);
+        next[k] = raw === "" ? 0 : raw;
+      });
+
+      if (!next.account_id) next.account_id = filters.account_id;
+
+      next.user_id = next.user_id || user_id;
+      next.type = next.type || filters.type;
+      next.payType = next.payType || filters.payType;
+
+      return next;
+    },
+    [filters, MONEY_KEYS, stripComma, originalRows]
+  );
+
+  const handleSave = useCallback(async () => {
+    try {
+      const modified = (rows || [])
+        .map((r, idx) => {
+          const o = originalRows?.[idx];
+          if (!o) return null;
+          return isRowChanged(o, r) ? buildRowForSave(r) : null;
+        })
+        .filter(Boolean);
+
+      if (modified.length === 0) {
+        return Swal.fire("안내", "변경된 내용이 없습니다.", "info");
+      }
+
+      Swal.fire({
+        title: "저장 중...",
+        text: "잠시만 기다려 주세요.",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const res = await api.post("/Account/AccountPurchaseDetailSave", modified, {
+        headers: { "Content-Type": "application/json" },
+        validateStatus: () => true,
+      });
+
+      Swal.close();
+
+      // ✅ 성공 판정(프로젝트에서 code=200 패턴/HTTP 200 둘 다 대응)
+      const ok = res?.status === 200 || res?.data?.code === 200;
+      if (!ok) {
+        return Swal.fire("실패", res?.data?.message || "저장에 실패했습니다.", "error");
+      }
+
+      Swal.fire("성공", "저장되었습니다.", "success");
+      // ✅ 저장 후 재조회해서 originalRows/rows 동기화
+      await fetchPurchaseList(filters);
+    } catch (e) {
+      Swal.close();
+      Swal.fire("오류", e.message || "저장 중 오류가 발생했습니다.", "error");
+    }
+  }, [rows, originalRows, isRowChanged, buildRowForSave, fetchPurchaseList, filters]);
+
+  if (loading) return <LoadingScreen />;
 
   return (
     <>
       {/* 🔹 조회조건 영역 */}
       <MDBox
-        display="flex"
-        flexWrap={isMobile ? "wrap" : "nowrap"}
-        flexDirection={isMobile ? "column" : "row"}
-        justifyContent={isMobile ? "flex-start" : "flex-end"}
-        alignItems={isMobile ? "stretch" : "center"}
-        gap={isMobile ? 1 : 1}
-        my={1}
-        mx={1}
+        pt={1}
+        pb={1}
         sx={{
+          display: "flex",
+          justifyContent: isMobile ? "space-between" : "flex-end",
+          alignItems: "center",
+          gap: isMobile ? 1 : 2,
+          flexWrap: isMobile ? "wrap" : "nowrap",
           position: "sticky",
-          top: 75,
           zIndex: 10,
+          top: 85,
           backgroundColor: "#ffffff",
-          padding: isMobile ? 1 : 2,
-          borderRadius: isMobile ? 1 : 2,
         }}
       >
         <TextField
@@ -230,6 +449,7 @@ function AccountPurchaseTallyTab() {
           <option value="3">프랜차이즈</option>
           <option value="4">산업체</option>
         </TextField>
+
         <TextField
           select
           label="조회구분"
@@ -243,6 +463,7 @@ function AccountPurchaseTallyTab() {
           <option value="1">현금</option>
           <option value="2">카드</option>
         </TextField>
+
         <TextField
           type="date"
           name="fromDate"
@@ -286,6 +507,7 @@ function AccountPurchaseTallyTab() {
             ))
           )}
         </TextField>
+
         <MDButton
           variant="gradient"
           color="info"
@@ -293,6 +515,16 @@ function AccountPurchaseTallyTab() {
           sx={{ minWidth: isMobile ? 90 : 100, fontSize: isMobile ? "11px" : "13px" }}
         >
           조회
+        </MDButton>
+
+        {/* ✅ 저장 버튼 추가 */}
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleSave}
+          sx={{ minWidth: isMobile ? 90 : 100, fontSize: isMobile ? "11px" : "13px" }}
+        >
+          저장
         </MDButton>
 
         <MDButton
@@ -325,11 +557,7 @@ function AccountPurchaseTallyTab() {
           display="flex"
           justifyContent="space-between"
           alignItems="center"
-          sx={{
-            position: "sticky",
-            top: 0,
-            zIndex: 3,
-          }}
+          sx={{ position: "sticky", top: 0, zIndex: 3 }}
         >
           <MDTypography variant="h6" color="white">
             매입 집계용
@@ -348,13 +576,11 @@ function AccountPurchaseTallyTab() {
                   ))}
                 </tr>
               </thead>
+
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={columns.length}
-                      style={{ textAlign: "center", padding: "12px" }}
-                    >
+                    <td colSpan={columns.length} style={{ textAlign: "center", padding: "12px" }}>
                       데이터가 없습니다. 조회 조건을 선택한 후 [조회] 버튼을 눌러주세요.
                     </td>
                   </tr>
@@ -377,9 +603,7 @@ function AccountPurchaseTallyTab() {
                             >
                               <select
                                 value={value}
-                                onChange={(e) =>
-                                  handleCellChange(rowIndex, key, e.target.value)
-                                }
+                                onChange={(e) => handleCellChange(rowIndex, key, e.target.value)}
                                 style={{
                                   fontSize: "12px",
                                   border: "none",
@@ -390,7 +614,7 @@ function AccountPurchaseTallyTab() {
                               >
                                 <option value="1">과세</option>
                                 <option value="2">면세</option>
-                                <option value="2">알수없음</option>
+                                <option value="3">알수없음</option>
                               </select>
                             </td>
                           );
@@ -408,9 +632,7 @@ function AccountPurchaseTallyTab() {
                             >
                               <select
                                 value={value}
-                                onChange={(e) =>
-                                  handleCellChange(rowIndex, key, e.target.value)
-                                }
+                                onChange={(e) => handleCellChange(rowIndex, key, e.target.value)}
                                 style={{
                                   fontSize: "12px",
                                   border: "none",
@@ -421,13 +643,13 @@ function AccountPurchaseTallyTab() {
                               >
                                 <option value="1">식재료</option>
                                 <option value="2">소모품</option>
-                                <option value="2">알수없음</option>
+                                <option value="3">알수없음</option>
                               </select>
                             </td>
                           );
                         }
 
-                        // 🔹 증빙자료사진 컬럼: 다운로드 + 미리보기 아이콘
+                        // 🔹 증빙자료사진 컬럼: 다운로드 + 미리보기(떠있는창)
                         if (key === "receipt_image") {
                           const hasImage = !!value;
 
@@ -439,39 +661,20 @@ function AccountPurchaseTallyTab() {
                                 width: `${col.size}px`,
                               }}
                             >
-                              <Box
-                                display="flex"
-                                justifyContent="center"
-                                alignItems="center"
-                                gap={0.5}
-                              >
-                                {/* 다운로드 아이콘 */}
+                              <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
                                 <IconButton
                                   size="small"
-                                  component={hasImage ? "a" : "button"}
-                                  href={hasImage ? `${API_BASE_URL}${value}` : undefined}
-                                  target={hasImage ? "_blank" : undefined}
-                                  rel={hasImage ? "noopener noreferrer" : undefined}
-                                  onClick={
-                                    hasImage
-                                      ? undefined
-                                      : handleNoImageAlert
-                                  }
-                                  color={hasImage ? "primary" : "error"} // 🔵/🔴
+                                  onClick={hasImage ? () => handleDownload(value) : handleNoImageAlert}
+                                  color={hasImage ? "primary" : "error"}
                                   sx={{ padding: "3px", lineHeight: 0 }}
                                 >
                                   <DownloadIcon fontSize="small" />
                                 </IconButton>
 
-                                {/* 미리보기 아이콘 */}
                                 <IconButton
                                   size="small"
-                                  onClick={
-                                    hasImage
-                                      ? () => handlePreviewOpen(value)
-                                      : handleNoImageAlert
-                                  }
-                                  color={hasImage ? "primary" : "error"} // 🔵/🔴
+                                  onClick={hasImage ? () => handleViewImage(value) : handleNoImageAlert}
+                                  color={hasImage ? "primary" : "error"}
                                   sx={{ padding: "3px", lineHeight: 0 }}
                                 >
                                   <ImageSearchIcon fontSize="small" />
@@ -487,9 +690,20 @@ function AccountPurchaseTallyTab() {
                             key={key}
                             contentEditable
                             suppressContentEditableWarning
-                            onBlur={(e) =>
-                              handleCellChange(rowIndex, key, e.target.innerText)
-                            }
+                            onBlur={(e) => {
+                              const text = e.target.innerText;
+
+                              // ✅ qty/unitPrice/amount 는 입력 후 콤마 적용
+                              if (MONEY_KEYS.includes(key)) {
+                                const formatted = formatComma(text);
+                                handleCellChange(rowIndex, key, formatted);
+                                // eslint-disable-next-line no-param-reassign
+                                e.target.innerText = formatted; // contentEditable 즉시 반영
+                                return;
+                              }
+
+                              handleCellChange(rowIndex, key, text);
+                            }}
                             style={{
                               ...getCellStyle(rowIndex, key, value),
                               width: `${col.size}px`,
@@ -508,34 +722,237 @@ function AccountPurchaseTallyTab() {
         </Grid>
       </MDBox>
 
-      {/* 🔍 이미지 미리보기 모달 */}
-      <Modal open={previewOpen} onClose={handlePreviewClose}>
+      {/* ========================= ✅ 떠있는 창 미리보기: 뒤 테이블 입력 가능 ========================= */}
+      {viewerOpen && (
         <Box
           sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            bgcolor: "background.paper",
-            borderRadius: 2,
-            boxShadow: 24,
-            p: 2,
+            position: "fixed",
+            inset: 0,
+            zIndex: 2000,
+            pointerEvents: "none",
           }}
         >
-          {previewSrc && (
-            <img
-              src={previewSrc}
-              alt="영수증 미리보기"
-              style={{
-                maxWidth: "90vw",
-                maxHeight: "80vh",
-                borderRadius: 8,
-                objectFit: "contain",
+          <Draggable
+            nodeRef={viewerNodeRef}
+            handle="#receipt-viewer-titlebar"
+            bounds="parent"
+            cancel={'button, a, input, textarea, select, img, [contenteditable="true"]'}
+          >
+            <Paper
+              ref={viewerNodeRef}
+              sx={{
+                position: "absolute",
+                top: 120,
+                left: 120,
+                m: 0,
+                width: "450px",
+                height: "650px",
+                maxWidth: "95vw",
+                maxHeight: "90vh",
+                borderRadius: 1.2,
+                border: "1px solid rgba(0,0,0,0.25)",
+                boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+                overflow: "hidden",
+                resize: "both",
+                pointerEvents: "auto",
+                backgroundColor: "#000",
               }}
-            />
-          )}
+            >
+              {/* 타이틀바(드래그 핸들) */}
+              <Box
+                id="receipt-viewer-titlebar"
+                sx={{
+                  height: 42,
+                  bgcolor: "#1b1b1b",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  px: 1,
+                  cursor: "move",
+                  userSelect: "none",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    flex: 1,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    pr: 1,
+                  }}
+                >
+                  {currentImg?.title || "영수증 미리보기"}
+                  {imageItems.length ? `  (${viewerIndex + 1}/${imageItems.length})` : ""}
+                </Typography>
+
+                <Tooltip title="이전(←)">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goPrev();
+                      }}
+                      disabled={imageItems.length <= 1}
+                    >
+                      <ChevronLeftIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="다음(→)">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goNext();
+                      }}
+                      disabled={imageItems.length <= 1}
+                    >
+                      <ChevronRightIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="새 탭으로 열기">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const src = currentImg?.src;
+                        if (src) window.open(src, "_blank", "noopener,noreferrer");
+                      }}
+                      disabled={!currentImg?.src}
+                    >
+                      <OpenInNewIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="다운로드">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const path = currentImg?.path;
+                        if (path) handleDownload(path);
+                      }}
+                      disabled={!currentImg?.path}
+                    >
+                      <DownloadIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="닫기(ESC)">
+                  <IconButton
+                    size="small"
+                    sx={{ color: "#fff" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseViewer();
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              {/* 컨텐츠 영역 */}
+              <Box
+                sx={{
+                  height: "calc(100% - 42px)",
+                  bgcolor: "#000",
+                  position: "relative",
+                }}
+              >
+                {currentImg?.src ? (
+                  <TransformWrapper
+                    initialScale={1}
+                    minScale={0.5}
+                    maxScale={6}
+                    centerOnInit
+                    wheel={{ step: 0.12 }}
+                    doubleClick={{ mode: "zoomIn" }}
+                  >
+                    {({ zoomIn, zoomOut, resetTransform }) => (
+                      <>
+                        {/* 줌 컨트롤(우상단) */}
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            right: 10,
+                            top: 10,
+                            zIndex: 3,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                          }}
+                        >
+                          <Tooltip title="확대">
+                            <IconButton size="small" onClick={zoomIn} sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+                              <ZoomInIcon sx={{ color: "#fff" }} fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="축소">
+                            <IconButton size="small" onClick={zoomOut} sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+                              <ZoomOutIcon sx={{ color: "#fff" }} fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="리셋">
+                            <IconButton size="small" onClick={resetTransform} sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+                              <RestartAltIcon sx={{ color: "#fff" }} fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+
+                        <TransformComponent
+                          wrapperStyle={{ width: "100%", height: "100%" }}
+                          contentStyle={{ width: "100%", height: "100%" }}
+                        >
+                          <Box
+                            sx={{
+                              width: "100%",
+                              height: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <img
+                              src={currentImg.src}
+                              alt="미리보기"
+                              onError={() => {
+                                Swal.fire("미리보기 실패", "이미지 경로 또는 서버 응답을 확인해주세요.", "error");
+                              }}
+                              style={{
+                                maxWidth: "95%",
+                                maxHeight: "95%",
+                                userSelect: "none",
+                              }}
+                            />
+                          </Box>
+                        </TransformComponent>
+                      </>
+                    )}
+                  </TransformWrapper>
+                ) : (
+                  <Typography sx={{ color: "#fff", p: 2 }}>이미지가 없습니다.</Typography>
+                )}
+              </Box>
+            </Paper>
+          </Draggable>
         </Box>
-      </Modal>
+      )}
     </>
   );
 }

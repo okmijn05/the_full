@@ -1,6 +1,6 @@
 // src/layouts/account/AccountPurchaseDeadlineTab.js
 /* eslint-disable react/function-component-definition */
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Grid,
   TextField,
@@ -8,12 +8,26 @@ import {
   useMediaQuery,
   Box,
   IconButton,
-  Modal,
   Menu,
   MenuItem,
+  Tooltip,
+  Typography,
 } from "@mui/material";
+
+import Paper from "@mui/material/Paper";
+import Draggable from "react-draggable";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+
 import DownloadIcon from "@mui/icons-material/Download";
 import ImageSearchIcon from "@mui/icons-material/ImageSearch";
+import CloseIcon from "@mui/icons-material/Close";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
+
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDButton from "components/MDButton";
@@ -43,35 +57,67 @@ function AccountPurchaseDeadlineTab() {
   // 🔹 상단 거래처(사업장) select용 리스트
   const [accountList, setAccountList] = useState([]);
 
-  // 🔹 이미지 미리보기 모달 상태
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewImage, setPreviewImage] = useState("");
-
-  const handlePreviewOpen = (src) => {
-    setPreviewImage(src);
-    setPreviewOpen(true);
-  };
-
-  const handlePreviewClose = () => {
-    setPreviewOpen(false);
-    setPreviewImage("");
-  };
-
-  // 🔹 증빙자료 없을 때 클릭 시 안내
-  const handleNoImageAlert = () => {
-    Swal.fire("이미지 없음", "등록된 증빙자료가 없습니다.", "warning");
-  };
-
   // ✅ 데이터 훅 사용
-  const { rows, setRows, originalRows, loading, fetchPurchaseList } =
-    useAccountPurchaseDeadlineData();
+  const { rows, setRows, originalRows, loading, fetchPurchaseList } = useAccountPurchaseDeadlineData();
 
-  // ✅ 최초 로딩 시: 거래처 목록 조회 + 첫 번째 거래처 자동 선택 & 자동 조회
+  // =========================================
+  // ✅ 금액 키들: 화면에는 콤마, 저장은 콤마 제거
+  // =========================================
+  const MONEY_KEYS = useMemo(() => ["vat", "taxFree", "tax", "total", "totalCash", "totalCard"], []);
+
+
+  const stripComma = useCallback((v) => {
+    if (v === null || v === undefined) return "";
+    // 콤마/공백 제거
+    return String(v).replace(/,/g, "").replace(/\s+/g, "").trim();
+  }, []);
+
+  const formatComma = useCallback(
+    (v) => {
+      const raw = stripComma(v);
+      if (raw === "") return "";
+
+      // 숫자만 남기고 싶으면 아래 정규식 사용(필요시)
+      // const cleaned = raw.replace(/[^\d.-]/g, "");
+      // const num = Number(cleaned);
+
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return String(v); // 숫자 변환 실패 시 원본 유지
+      return num.toLocaleString("ko-KR");
+    },
+    [stripComma]
+  );
+
+  // ✅ 조회 결과가 들어오면 금액 필드에 콤마 적용(초기 표시용)
   useEffect(() => {
+    if (!rows) return;
+    if (!Array.isArray(rows) || rows.length === 0) return;
+
+    const formatted = rows.map((r) => {
+      const nr = { ...r };
+      MONEY_KEYS.forEach((k) => {
+        nr[k] = formatComma(nr[k]);
+      });
+      return nr;
+    });
+
+    const changed = formatted.some((r, i) =>
+      MONEY_KEYS.some((k) => String(r?.[k] ?? "") !== String(rows?.[i]?.[k] ?? ""))
+    );
+
+    if (changed) setRows(formatted);
+  }, [rows, setRows, MONEY_KEYS, formatComma]);
+
+  // ✅ 최초 로딩: 거래처 목록 조회 + 첫 번째 거래처 자동 선택 & 자동 조회
+  // ⚠️ fetchPurchaseList가 매 렌더마다 참조가 바뀔 수 있어 dependency 걸면 무한루프 가능 -> initRef로 1회만 실행
+  const didInitRef = useRef(false);
+
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+
     api
-      .get("/Account/AccountList", {
-        params: { account_type: "0" },
-      })
+      .get("/Account/AccountList", { params: { account_type: "0" } })
       .then((res) => {
         const list = (res.data || []).map((item) => ({
           account_id: item.account_id,
@@ -81,28 +127,24 @@ function AccountPurchaseDeadlineTab() {
 
         if (list.length > 0) {
           const firstId = list[0].account_id;
-          setFilters((prev) => {
-            const next = { ...prev, account_id: firstId };
-            // 🔹 첫 번째 거래처로 바로 조회
-            fetchPurchaseList(next);
-            return next;
-          });
+          const next = { ...filters, account_id: firstId };
+
+          // ✅ state 반영
+          setFilters(next);
+
+          // ✅ 조회
+          fetchPurchaseList(next);
         }
       })
       .catch((err) => console.error("데이터 조회 실패 (AccountList):", err));
-  }, []);
+  }, []); // ✅ 의도적으로 1회만
 
   // ✅ 조회조건 변경
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => {
       const next = { ...prev, [name]: value };
-
-      // 🔹 거래처 select 변경 시는 즉시 재조회 (account_id 기준)
-      if (name === "account_id") {
-        fetchPurchaseList(next);
-      }
-
+      if (name === "account_id") fetchPurchaseList(next);
       return next;
     });
   };
@@ -117,31 +159,34 @@ function AccountPurchaseDeadlineTab() {
   };
 
   // ✅ 변경 감지 스타일
-  const normalize = (value) =>
-    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : value;
+  const normalize = (value) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim() : value);
 
   const getCellStyle = (rowIndex, key, value) => {
     const original = originalRows[rowIndex]?.[key];
+
+    // ✅ 금액 컬럼은 콤마 제외하고 비교
+    if (MONEY_KEYS.includes(key)) {
+      const a = stripComma(original);
+      const b = stripComma(value);
+      return a !== b ? { color: "red" } : { color: "black" };
+    }
+
     if (typeof original === "string" && typeof value === "string") {
-      return normalize(original) !== normalize(value)
-        ? { color: "red" }
-        : { color: "black" };
+      return normalize(original) !== normalize(value) ? { color: "red" } : { color: "black" };
     }
     return original !== value ? { color: "red" } : { color: "black" };
   };
 
   const handleCellChange = (rowIndex, key, value) => {
-    setRows((prev) =>
-      prev.map((r, i) => (i === rowIndex ? { ...r, [key]: value } : r))
-    );
+    setRows((prev) => prev.map((r, i) => (i === rowIndex ? { ...r, [key]: value } : r)));
   };
 
   const tableSx = {
     flex: 1,
     minHeight: 0,
-    overflowX: "auto", // 🔹 가로 스크롤
+    overflowX: "auto",
     overflowY: "auto",
-    maxHeight: isMobile ? "calc(100vh - 260px)" : "none",
+    maxHeight: isMobile ? "calc(100vh - 260px)" : "75vh",
     "& table": {
       borderCollapse: "separate",
       width: "max-content",
@@ -159,7 +204,8 @@ function AccountPurchaseDeadlineTab() {
     "& th": {
       backgroundColor: "#fef6e4",
       position: "sticky",
-      top: 0,
+      borderCollapse: "separate",
+      top: 43,
       zIndex: 2,
     },
     "& input[type='text'], & input[type='date']": {
@@ -178,7 +224,10 @@ function AccountPurchaseDeadlineTab() {
       { header: "구매처", accessorKey: "name", size: 180 },
       { header: "부가세", accessorKey: "vat", size: 80 },
       { header: "면세", accessorKey: "taxFree", size: 80 },
+      { header: "과세", accessorKey: "tax", size: 80 },
       { header: "구분(현금,카드)", accessorKey: "payType", size: 90 },
+      { header: "현금합계", accessorKey: "totalCash", size: 80 },
+      { header: "카드합계", accessorKey: "totalCard", size: 80 },
       { header: "합계", accessorKey: "total", size: 80 },
       { header: "증빙자료사진", accessorKey: "receipt_image", size: 200 },
       { header: "기타", accessorKey: "note", size: 200 },
@@ -186,17 +235,200 @@ function AccountPurchaseDeadlineTab() {
     []
   );
 
+  // =========================
   // ✅ URL 조립(이미 절대경로면 그대로, 아니면 API_BASE_URL 붙임)
-  const buildFileUrl = (path) => {
+  // =========================
+  const buildFileUrl = useCallback((path) => {
     if (!path) return "";
     if (/^https?:\/\//i.test(path)) return path;
     const base = String(API_BASE_URL || "").replace(/\/+$/, "");
     const p = String(path).startsWith("/") ? path : `/${path}`;
     return `${base}${p}`;
+  }, []);
+
+  // 🔹 증빙자료 없을 때 클릭 시 안내
+  const handleNoImageAlert = () => {
+    Swal.fire("이미지 없음", "등록된 증빙자료가 없습니다.", "warning");
   };
 
-  // 🔹 미리보기용 이미지 URL
-  const previewSrc = previewImage ? buildFileUrl(previewImage) : "";
+  // ✅ 다운로드
+  const handleDownload = useCallback(
+    (path) => {
+      if (!path || typeof path !== "string") return;
+      const url = buildFileUrl(path);
+      const filename = path.split("/").pop() || "download";
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    },
+    [buildFileUrl]
+  );
+
+  // ============================================================
+  // ✅ 떠있는 창(윈도우) 미리보기: 뒤 테이블 입력 가능
+  // ============================================================
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const viewerNodeRef = useRef(null);
+
+  const imageItems = useMemo(() => {
+    return (rows || [])
+      .filter((r) => !!r?.receipt_image)
+      .map((r) => ({
+        path: r.receipt_image,
+        src: buildFileUrl(r.receipt_image),
+        title: `${r.name || ""} ${r.saleDate || ""}`.trim(),
+      }));
+  }, [rows, buildFileUrl]);
+
+  const handleViewImage = useCallback(
+    (path) => {
+      if (!path) return;
+      const idx = imageItems.findIndex((x) => x.path === path);
+      setViewerIndex(idx >= 0 ? idx : 0);
+      setViewerOpen(true);
+    },
+    [imageItems]
+  );
+
+  const handleCloseViewer = useCallback(() => setViewerOpen(false), []);
+
+  const goPrev = useCallback(() => {
+    setViewerIndex((i) => (imageItems.length ? (i - 1 + imageItems.length) % imageItems.length : 0));
+  }, [imageItems.length]);
+
+  const goNext = useCallback(() => {
+    setViewerIndex((i) => (imageItems.length ? (i + 1) % imageItems.length : 0));
+  }, [imageItems.length]);
+
+  useEffect(() => {
+    if (!viewerOpen) return;
+    if (!imageItems.length) {
+      setViewerIndex(0);
+      return;
+    }
+    if (viewerIndex > imageItems.length - 1) setViewerIndex(imageItems.length - 1);
+  }, [viewerOpen, imageItems.length, viewerIndex]);
+
+  useEffect(() => {
+    if (!viewerOpen) return;
+
+    const onKeyDown = (e) => {
+      const tag = (e.target?.tagName || "").toLowerCase();
+      const isTyping = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+      if (isTyping) return;
+
+      if (e.key === "Escape") handleCloseViewer();
+      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "ArrowRight") goNext();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewerOpen, goPrev, goNext, handleCloseViewer]);
+
+  const currentImg = imageItems[viewerIndex];
+
+  // ============================================================
+  // ✅ 저장: 수정된 행만 /Account/AccountPurchaseSave 로 전송
+  //    - 금액 항목 콤마 제거해서 전송
+  // ============================================================
+  const SAVE_KEYS = useMemo(
+    () => ["saleDate", "name", "vat", "taxFree", "tax", "payType", "totalCash", "totalCard", "total", "receipt_image", "note"],
+    []
+  );
+
+  const isRowChanged = useCallback(
+    (orig, cur) =>
+      SAVE_KEYS.some((k) => {
+        const a = orig?.[k];
+        const b = cur?.[k];
+
+        // ✅ 금액 컬럼은 콤마 제외하고 비교
+        if (MONEY_KEYS.includes(k)) return stripComma(a) !== stripComma(b);
+
+        if (typeof a === "string" && typeof b === "string") return normalize(a) !== normalize(b);
+        return a !== b;
+      }),
+    [SAVE_KEYS, MONEY_KEYS, stripComma]
+  );
+
+  const buildRowForSave = useCallback(
+    (r) => {
+      const user_id = localStorage.getItem("user_id") || "";
+      const next = { ...r };
+
+      // 화면용 컬럼 제거(백엔드 필요없으면)
+      delete next.account_name;
+
+      // ✅ 금액은 콤마 제거해서 저장 payload에 넣기
+      MONEY_KEYS.forEach((k) => {
+        const raw = stripComma(next[k]);
+        // 빈 값이면 0으로(원하면 "" 또는 null로 바꿔도 됨)
+        next[k] = raw === "" ? 0 : raw;
+      });
+
+      // 혹시 row에 account_id 없으면 필터값으로 보강
+      if (!next.account_id) next.account_id = filters.account_id;
+
+      // 사용자/조건 정보 보강(백엔드에서 필요할 수 있음)
+      next.user_id = next.user_id || user_id;
+      next.type = next.type || filters.type;
+
+      return next;
+    },
+    [filters, MONEY_KEYS, stripComma]
+  );
+
+  const handleSave = useCallback(async () => {
+    try {
+      const modified = (rows || [])
+        .map((r, idx) => {
+          const o = originalRows?.[idx];
+          if (!o) return null;
+          return isRowChanged(o, r) ? buildRowForSave(r) : null;
+        })
+        .filter(Boolean);
+
+      if (modified.length === 0) {
+        return Swal.fire("안내", "변경된 내용이 없습니다.", "info");
+      }
+
+      Swal.fire({
+        title: "저장 중...",
+        text: "잠시만 기다려 주세요.",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const res = await api.post("/Account/AccountPurchaseSave", modified, {
+        headers: { "Content-Type": "application/json" },
+        validateStatus: () => true,
+      });
+
+      Swal.close();
+
+      const ok = res?.status === 200 || res?.data?.code === 200;
+      if (!ok) {
+        return Swal.fire("실패", res?.data?.message || "저장에 실패했습니다.", "error");
+      }
+
+      Swal.fire("성공", "저장되었습니다.", "success");
+
+      // ✅ 저장 후 재조회(원본/현재 동기화)
+      await fetchPurchaseList(filters);
+    } catch (e) {
+      Swal.close();
+      Swal.fire("오류", e?.message || "저장 중 오류가 발생했습니다.", "error");
+    }
+  }, [rows, originalRows, isRowChanged, buildRowForSave, fetchPurchaseList, filters]);
 
   // -----------------------------
   // ✅ 엑셀 다운로드(메뉴 + 세금계산서)
@@ -237,21 +469,18 @@ function AccountPurchaseDeadlineTab() {
       return;
     }
 
-    // ✅ 공급받는자(우리) 정보: 현재 소스엔 bizNo/ceo가 없어서 TODO
     const buyer = {
-      bizNo: "000-00-00000", // TODO: 사업장 사업자번호
+      bizNo: "000-00-00000", // TODO
       name: getAccountName() || "공급받는자(사업장)",
-      ceoName: "대표자명",   // TODO: 사업장 대표자명
+      ceoName: "대표자명", // TODO
     };
 
-    // 시트명 안전 처리(엑셀 31자 제한 + 특수문자 제거)
     const safeSheetName = (s) =>
       String(s || "세금계산서")
         .replace(/[\[\]\*\/\\\?\:]/g, " ")
         .trim()
         .slice(0, 31) || "세금계산서";
 
-    // 공급가액(과세분) 추정: total = 공급가액(과세) + vat(세액) + taxFree(면세) 라는 가정
     const calcTaxableSupply = (r) => {
       const total = parseNumber(r.total);
       const vat = parseNumber(r.vat);
@@ -260,7 +489,6 @@ function AccountPurchaseDeadlineTab() {
       return supply > 0 ? supply : 0;
     };
 
-    // ✅ 공급자별로 그룹핑
     const groups = new Map();
     rows.forEach((r) => {
       const supplierBizNo = (r.bizNo || "").trim();
@@ -273,35 +501,32 @@ function AccountPurchaseDeadlineTab() {
     const wb = new ExcelJS.Workbook();
     wb.creator = "THEFULL";
 
-    // (선택) 목록 시트
     const listWs = wb.addWorksheet("목록");
     listWs.addRow(["공급자 사업자번호", "공급자 상호", "기간", "건수", "공급가액(과세)", "세액", "면세", "합계"]);
     listWs.getRow(1).font = { bold: true };
 
-    // 공급자별 시트 생성
     for (const [key, items] of groups.entries()) {
       const [supplierBizNo, supplierName] = key.split("__");
-      const supplierCeo = items[0]?.ceo_name || ""; // 같은 공급자면 동일하다고 가정
+      const supplierCeo = items[0]?.ceo_name || "";
 
-      // 날짜 정렬(있으면)
       items.sort((a, b) => String(a.saleDate || "").localeCompare(String(b.saleDate || "")));
 
       const ws = wb.addWorksheet(safeSheetName(`${supplierName || "공급자"}_세금계산서`));
 
-      // ===== 상단 제목 =====
       ws.mergeCells("A1:I1");
       ws.getCell("A1").value = "세 금 계 산 서 (출력/보관용)";
       ws.getCell("A1").font = { bold: true, size: 16 };
       ws.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
 
-      // ===== 공급자 / 공급받는자 블록 =====
-      // 라벨 스타일
       const label = (addr, text) => {
         ws.getCell(addr).value = text;
         ws.getCell(addr).font = { bold: true };
         ws.getCell(addr).alignment = { horizontal: "center", vertical: "middle" };
         ws.getCell(addr).border = {
-          top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
         };
         ws.getCell(addr).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2CC" } };
       };
@@ -309,29 +534,34 @@ function AccountPurchaseDeadlineTab() {
         ws.getCell(addr).value = text;
         ws.getCell(addr).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         ws.getCell(addr).border = {
-          top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
         };
       };
 
-      // 공급자(좌)
       label("A3", "공급자");
-      label("A4", "사업자번호"); box("B4", supplierBizNo);
-      label("A5", "상호(명칭)"); box("B5", supplierName);
-      label("A6", "대표자");     box("B6", supplierCeo);
+      label("A4", "사업자번호");
+      box("B4", supplierBizNo);
+      label("A5", "상호(명칭)");
+      box("B5", supplierName);
+      label("A6", "대표자");
+      box("B6", supplierCeo);
 
-      // 공급받는자(우)
       label("E3", "공급받는자");
-      label("E4", "사업자번호"); box("F4", buyer.bizNo);
-      label("E5", "상호(명칭)"); box("F5", buyer.name);
-      label("E6", "대표자");     box("F6", buyer.ceoName);
+      label("E4", "사업자번호");
+      box("F4", buyer.bizNo);
+      label("E5", "상호(명칭)");
+      box("F5", buyer.name);
+      label("E6", "대표자");
+      box("F6", buyer.ceoName);
 
-      // 조회기간/구분 표시
       label("A8", "조회기간");
       box("B8", `${filters.fromDate} ~ ${filters.toDate}`);
       label("E8", "조회구분");
       box("F8", payTypeText(filters.payType));
 
-      // ===== 품목 테이블 =====
       const headerRowIndex = 10;
       const headers = ["일자", "품목(집계)", "수량", "단가", "공급가액(과세)", "세액", "면세", "합계", "비고"];
       ws.getRow(headerRowIndex).values = headers;
@@ -339,16 +569,17 @@ function AccountPurchaseDeadlineTab() {
       ws.getRow(headerRowIndex).alignment = { horizontal: "center", vertical: "middle" };
       ws.getRow(headerRowIndex).height = 18;
 
-      // 헤더 스타일
       headers.forEach((_, i) => {
         const c = ws.getRow(headerRowIndex).getCell(i + 1);
         c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2CC" } };
         c.border = {
-          top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
         };
       });
 
-      // 데이터 rows
       let supplySum = 0;
       let vatSum = 0;
       let taxFreeSum = 0;
@@ -365,48 +596,37 @@ function AccountPurchaseDeadlineTab() {
         taxFreeSum += taxFree;
         totalSum += total;
 
-        ws.addRow([
-          r.saleDate ?? "",
-          "매입집계",          // 현재 데이터는 품목이 없으니 고정(원하면 r.itemName 같은 걸로 교체)
-          "",                  // 수량
-          "",                  // 단가
-          supply,
-          vat,
-          taxFree,
-          total,
-          r.note ?? "",
-        ]);
+        ws.addRow([r.saleDate ?? "", "매입집계", "", "", supply, vat, taxFree, total, r.note ?? ""]);
       });
 
-      // 합계 라인
       ws.addRow(["", "합계", "", "", supplySum, vatSum, taxFreeSum, totalSum, ""]);
 
-      // 컬럼폭
       ws.columns = [
-        { width: 12 }, // 일자
-        { width: 14 }, // 품목
-        { width: 8 },  // 수량
-        { width: 10 }, // 단가
-        { width: 16 }, // 공급가액
-        { width: 12 }, // 세액
-        { width: 12 }, // 면세
-        { width: 14 }, // 합계
-        { width: 30 }, // 비고
+        { width: 12 },
+        { width: 14 },
+        { width: 8 },
+        { width: 10 },
+        { width: 16 },
+        { width: 12 },
+        { width: 12 },
+        { width: 14 },
+        { width: 30 },
       ];
 
-      // 숫자 포맷 + 테두리
       ws.eachRow((row, rowNumber) => {
         if (rowNumber < headerRowIndex) return;
         row.eachCell((cell, colNumber) => {
           cell.border = {
-            top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
           };
           cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
           if ([5, 6, 7, 8].includes(colNumber)) cell.numFmt = "#,##0";
         });
       });
 
-      // 목록 시트에도 요약 추가
       listWs.addRow([
         supplierBizNo,
         supplierName,
@@ -419,13 +639,18 @@ function AccountPurchaseDeadlineTab() {
       ]);
     }
 
-    // 목록 숫자 포맷
     for (let r = 2; r <= listWs.rowCount; r += 1) {
       [5, 6, 7, 8].forEach((c) => (listWs.getCell(r, c).numFmt = "#,##0"));
     }
     listWs.columns = [
-      { width: 16 }, { width: 22 }, { width: 24 }, { width: 8 },
-      { width: 16 }, { width: 12 }, { width: 12 }, { width: 14 },
+      { width: 16 },
+      { width: 22 },
+      { width: 24 },
+      { width: 8 },
+      { width: 16 },
+      { width: 12 },
+      { width: 12 },
+      { width: 14 },
     ];
 
     const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -487,6 +712,7 @@ function AccountPurchaseDeadlineTab() {
           <option value="3">프랜차이즈</option>
           <option value="4">산업체</option>
         </TextField>
+
         <TextField
           select
           label="조회구분"
@@ -500,6 +726,7 @@ function AccountPurchaseDeadlineTab() {
           <option value="1">현금</option>
           <option value="2">카드</option>
         </TextField>
+
         <TextField
           type="date"
           name="fromDate"
@@ -521,7 +748,8 @@ function AccountPurchaseDeadlineTab() {
           InputLabelProps={{ shrink: true }}
           sx={{ minWidth: isMobile ? 100 : 120 }}
         />
-        {/* 🔹 거래처(사업장) select - account_id 사용 */}
+
+        {/* 🔹 거래처(사업장) select */}
         <TextField
           select
           label="거래처"
@@ -542,54 +770,46 @@ function AccountPurchaseDeadlineTab() {
             ))
           )}
         </TextField>
+
         <MDButton
           variant="gradient"
           color="info"
           onClick={handleSearch}
-          sx={{
-            minWidth: isMobile ? 90 : 100,
-            fontSize: isMobile ? "11px" : "13px",
-          }}
+          sx={{ minWidth: isMobile ? 90 : 100, fontSize: isMobile ? "11px" : "13px" }}
         >
           조회
         </MDButton>
 
-        {/* ✅ 엑셀다운로드: 메뉴 선택(세금계산서/계산서/간이과세) */}
+        {/* ✅ 저장 버튼 */}
+        <MDButton
+          variant="gradient"
+          color="info"
+          onClick={handleSave}
+          sx={{ minWidth: isMobile ? 90 : 100, fontSize: isMobile ? "11px" : "13px" }}
+        >
+          저장
+        </MDButton>
+
+        {/* ✅ 엑셀다운로드 */}
         <MDButton
           variant="gradient"
           color="info"
           onClick={handleExcelMenuOpen}
-          sx={{
-            minWidth: isMobile ? 90 : 110,
-            fontSize: isMobile ? "11px" : "13px",
-          }}
+          sx={{ minWidth: isMobile ? 90 : 110, fontSize: isMobile ? "11px" : "13px" }}
         >
           엑셀다운로드
         </MDButton>
 
-        <Menu
-          anchorEl={excelAnchorEl}
-          open={excelMenuOpen}
-          onClose={handleExcelMenuClose}
-        >
-          <MenuItem onClick={() => handleExcelDownload("taxInvoice")}>
-            세금계산서
-          </MenuItem>
-          <MenuItem onClick={() => handleExcelDownload("invoice")}>
-            계산서
-          </MenuItem>
-          <MenuItem onClick={() => handleExcelDownload("simple")}>
-            간이과세
-          </MenuItem>
+        <Menu anchorEl={excelAnchorEl} open={excelMenuOpen} onClose={handleExcelMenuClose}>
+          <MenuItem onClick={() => handleExcelDownload("taxInvoice")}>세금계산서</MenuItem>
+          <MenuItem onClick={() => handleExcelDownload("invoice")}>계산서</MenuItem>
+          <MenuItem onClick={() => handleExcelDownload("simple")}>간이과세</MenuItem>
         </Menu>
 
         <MDButton
           variant="gradient"
           color="info"
-          sx={{
-            minWidth: isMobile ? 70 : 90,
-            fontSize: isMobile ? "11px" : "13px",
-          }}
+          sx={{ minWidth: isMobile ? 70 : 90, fontSize: isMobile ? "11px" : "13px" }}
         >
           인쇄
         </MDButton>
@@ -608,11 +828,7 @@ function AccountPurchaseDeadlineTab() {
           display="flex"
           justifyContent="space-between"
           alignItems="center"
-          sx={{
-            position: "sticky",
-            top: 0,
-            zIndex: 3,
-          }}
+          sx={{ position: "sticky", top: 0, zIndex: 3 }}
         >
           <MDTypography variant="h6" color="white">
             매입 집계용
@@ -631,13 +847,11 @@ function AccountPurchaseDeadlineTab() {
                   ))}
                 </tr>
               </thead>
+
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={columns.length}
-                      style={{ textAlign: "center", padding: "12px" }}
-                    >
+                    <td colSpan={columns.length} style={{ textAlign: "center", padding: "12px" }}>
                       데이터가 없습니다. 조회 조건을 선택한 후 [조회] 버튼을 눌러주세요.
                     </td>
                   </tr>
@@ -648,7 +862,7 @@ function AccountPurchaseDeadlineTab() {
                         const key = col.accessorKey;
                         const value = row[key] ?? "";
 
-                        // 🔹 payType 컬럼은 select로 표시 (1=현금, 2=카드)
+                        // 🔹 payType 컬럼 select
                         if (key === "payType") {
                           return (
                             <td
@@ -660,13 +874,7 @@ function AccountPurchaseDeadlineTab() {
                             >
                               <select
                                 value={value}
-                                onChange={(e) =>
-                                  handleCellChange(
-                                    rowIndex,
-                                    key,
-                                    e.target.value
-                                  )
-                                }
+                                onChange={(e) => handleCellChange(rowIndex, key, e.target.value)}
                                 style={{
                                   fontSize: "12px",
                                   border: "none",
@@ -682,7 +890,7 @@ function AccountPurchaseDeadlineTab() {
                           );
                         }
 
-                        // 🔹 증빙자료사진 컬럼: 다운로드 + 미리보기 아이콘
+                        // 🔹 증빙자료사진
                         if (key === "receipt_image") {
                           const hasImage = !!value;
 
@@ -694,35 +902,20 @@ function AccountPurchaseDeadlineTab() {
                                 width: `${col.size}px`,
                               }}
                             >
-                              <Box
-                                display="flex"
-                                justifyContent="center"
-                                alignItems="center"
-                                gap={0.5}
-                              >
-                                {/* 다운로드 아이콘 */}
+                              <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
                                 <IconButton
                                   size="small"
-                                  component={hasImage ? "a" : "button"}
-                                  href={hasImage ? buildFileUrl(value) : undefined}
-                                  target={hasImage ? "_blank" : undefined}
-                                  rel={hasImage ? "noopener noreferrer" : undefined}
-                                  onClick={hasImage ? undefined : handleNoImageAlert}
-                                  color={hasImage ? "primary" : "error"} // 🔵/🔴
+                                  onClick={hasImage ? () => handleDownload(value) : handleNoImageAlert}
+                                  color={hasImage ? "primary" : "error"}
                                   sx={{ padding: "3px", lineHeight: 0 }}
                                 >
                                   <DownloadIcon fontSize="small" />
                                 </IconButton>
 
-                                {/* 미리보기 아이콘 */}
                                 <IconButton
                                   size="small"
-                                  onClick={
-                                    hasImage
-                                      ? () => handlePreviewOpen(value)
-                                      : handleNoImageAlert
-                                  }
-                                  color={hasImage ? "primary" : "error"} // 🔵/🔴
+                                  onClick={hasImage ? () => handleViewImage(value) : handleNoImageAlert}
+                                  color={hasImage ? "primary" : "error"}
                                   sx={{ padding: "3px", lineHeight: 0 }}
                                 >
                                   <ImageSearchIcon fontSize="small" />
@@ -738,9 +931,21 @@ function AccountPurchaseDeadlineTab() {
                             key={key}
                             contentEditable
                             suppressContentEditableWarning
-                            onBlur={(e) =>
-                              handleCellChange(rowIndex, key, e.target.innerText)
-                            }
+                            onBlur={(e) => {
+                              const text = e.target.innerText;
+
+                              // ✅ 금액이면 입력 후 콤마 자동 적용
+                              if (MONEY_KEYS.includes(key)) {
+                                const formatted = formatComma(text);
+                                handleCellChange(rowIndex, key, formatted);
+                                // contentEditable에 즉시 반영(커서 이슈 방지용)
+                                // eslint-disable-next-line no-param-reassign
+                                e.target.innerText = formatted;
+                                return;
+                              }
+
+                              handleCellChange(rowIndex, key, text);
+                            }}
                             style={{
                               ...getCellStyle(rowIndex, key, value),
                               width: `${col.size}px`,
@@ -759,41 +964,226 @@ function AccountPurchaseDeadlineTab() {
         </Grid>
       </MDBox>
 
-      {/* 🔍 이미지 미리보기 모달 */}
-      <Modal open={previewOpen} onClose={handlePreviewClose}>
+      {/* ========================= ✅ 떠있는 창 미리보기 ========================= */}
+      {viewerOpen && (
         <Box
           sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            bgcolor: "background.paper",
-            borderRadius: 2,
-            boxShadow: 24,
-            p: 2,
+            position: "fixed",
+            inset: 0,
+            zIndex: 2000,
+            pointerEvents: "none",
           }}
         >
-          {previewSrc && (
-            <img
-              src={encodeURI(previewSrc)}
-              alt="영수증 미리보기"
-              onError={() => {
-                Swal.fire(
-                  "미리보기 실패",
-                  "이미지 경로 또는 서버 응답을 확인해주세요.",
-                  "error"
-                );
+          <Draggable
+            nodeRef={viewerNodeRef}
+            handle="#receipt-viewer-titlebar"
+            bounds="parent"
+            cancel={'button, a, input, textarea, select, img, [contenteditable="true"]'}
+          >
+            <Paper
+              ref={viewerNodeRef}
+              sx={{
+                position: "absolute",
+                top: 120,
+                left: 120,
+                m: 0,
+                width: "450px",
+                height: "650px",
+                maxWidth: "95vw",
+                maxHeight: "90vh",
+                borderRadius: 1.2,
+                border: "1px solid rgba(0,0,0,0.25)",
+                boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+                overflow: "hidden",
+                resize: "both",
+                pointerEvents: "auto",
+                backgroundColor: "#000",
               }}
-              style={{
-                maxWidth: "90vw",
-                maxHeight: "80vh",
-                borderRadius: 8,
-                objectFit: "contain",
-              }}
-            />
-          )}
+            >
+              {/* 타이틀바 */}
+              <Box
+                id="receipt-viewer-titlebar"
+                sx={{
+                  height: 42,
+                  bgcolor: "#1b1b1b",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  px: 1,
+                  cursor: "move",
+                  userSelect: "none",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    flex: 1,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    pr: 1,
+                  }}
+                >
+                  {currentImg?.title || "영수증 미리보기"}
+                  {imageItems.length ? `  (${viewerIndex + 1}/${imageItems.length})` : ""}
+                </Typography>
+
+                <Tooltip title="이전(←)">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goPrev();
+                      }}
+                      disabled={imageItems.length <= 1}
+                    >
+                      <ChevronLeftIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="다음(→)">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goNext();
+                      }}
+                      disabled={imageItems.length <= 1}
+                    >
+                      <ChevronRightIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="새 탭으로 열기">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const src = currentImg?.src;
+                        if (src) window.open(src, "_blank", "noopener,noreferrer");
+                      }}
+                      disabled={!currentImg?.src}
+                    >
+                      <OpenInNewIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="다운로드">
+                  <span>
+                    <IconButton
+                      size="small"
+                      sx={{ color: "#fff" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const path = currentImg?.path;
+                        if (path) handleDownload(path);
+                      }}
+                      disabled={!currentImg?.path}
+                    >
+                      <DownloadIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="닫기(ESC)">
+                  <IconButton
+                    size="small"
+                    sx={{ color: "#fff" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseViewer();
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              {/* 컨텐츠 */}
+              <Box sx={{ height: "calc(100% - 42px)", bgcolor: "#000", position: "relative" }}>
+                {currentImg?.src ? (
+                  <TransformWrapper
+                    initialScale={1}
+                    minScale={0.5}
+                    maxScale={6}
+                    centerOnInit
+                    wheel={{ step: 0.12 }}
+                    doubleClick={{ mode: "zoomIn" }}
+                  >
+                    {({ zoomIn, zoomOut, resetTransform }) => (
+                      <>
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            right: 10,
+                            top: 10,
+                            zIndex: 3,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                          }}
+                        >
+                          <Tooltip title="확대">
+                            <IconButton size="small" onClick={zoomIn} sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+                              <ZoomInIcon sx={{ color: "#fff" }} fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="축소">
+                            <IconButton size="small" onClick={zoomOut} sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+                              <ZoomOutIcon sx={{ color: "#fff" }} fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="리셋">
+                            <IconButton size="small" onClick={resetTransform} sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+                              <RestartAltIcon sx={{ color: "#fff" }} fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+
+                        <TransformComponent
+                          wrapperStyle={{ width: "100%", height: "100%" }}
+                          contentStyle={{ width: "100%", height: "100%" }}
+                        >
+                          <Box
+                            sx={{
+                              width: "100%",
+                              height: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <img
+                              src={currentImg.src}
+                              alt="미리보기"
+                              onError={() => {
+                                Swal.fire("미리보기 실패", "이미지 경로 또는 서버 응답을 확인해주세요.", "error");
+                              }}
+                              style={{ maxWidth: "95%", maxHeight: "95%", userSelect: "none" }}
+                            />
+                          </Box>
+                        </TransformComponent>
+                      </>
+                    )}
+                  </TransformWrapper>
+                ) : (
+                  <Typography sx={{ color: "#fff", p: 2 }}>이미지가 없습니다.</Typography>
+                )}
+              </Box>
+            </Paper>
+          </Draggable>
         </Box>
-      </Modal>
+      )}
     </>
   );
 }

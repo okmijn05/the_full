@@ -53,6 +53,7 @@ export default function Tables() {
     if (v == null) return "";
     if (typeof v === "string" || typeof v === "number") return String(v);
 
+    // ✅ React import를 했으니 안전
     if (React.isValidElement(v)) {
       const c = v.props?.children;
       if (c == null) return "";
@@ -62,37 +63,43 @@ export default function Tables() {
     return String(v);
   }, []);
 
-  const normalizeAccountType = useCallback((v) => {
-    const s = toPlainText(v).trim();
-    if (!s) return "";
-    if (/^\d+$/.test(s)) return s;
+  const normalizeAccountType = useCallback(
+    (v) => {
+      const s = toPlainText(v).trim();
+      if (!s) return "";
+      if (/^\d+$/.test(s)) return s;
 
-    const map = {
-      "요양원": "1",
-      "도소매": "2",
-      "프랜차이즈": "3",
-      "산업체": "4",
-      "학교": "5",
-    };
-    return map[s] || "";
-  }, [toPlainText]);
+      const map = {
+        요양원: "1",
+        도소매: "2",
+        프랜차이즈: "3",
+        산업체: "4",
+        학교: "5",
+      };
+      return map[s] || "";
+    },
+    [toPlainText]
+  );
 
-  const normalizeMealType = useCallback((v) => {
-    const s = toPlainText(v).trim();
-    if (!s) return "";
-    if (/^\d+$/.test(s)) return s;
+  const normalizeMealType = useCallback(
+    (v) => {
+      const s = toPlainText(v).trim();
+      if (!s) return "";
+      if (/^\d+$/.test(s)) return s;
 
-    // 모달 옵션 기준
-    const map = {
-      "요양주간": "1",
-      "요양직원": "2",
-      "요양": "3",
-      "주간보호": "4",
-      "산업체": "5",
-    };
-    return map[s] || "";
-  }, [toPlainText]);
-  
+      // 모달 옵션 기준
+      const map = {
+        요양주간: "1",
+        요양직원: "2",
+        요양: "3",
+        주간보호: "4",
+        산업체: "5",
+      };
+      return map[s] || "";
+    },
+    [toPlainText]
+  );
+
   const toNumberString = useCallback((v) => {
     if (v == null) return "";
     return String(v).replace(/[^0-9]/g, "");
@@ -104,14 +111,14 @@ export default function Tables() {
   const [localRows, setLocalRows] = useState([]);
 
   // ✅ 원래값 저장(빨간색 비교용)
-  // { [rowKey]: { account_rqd_member: "10", account_headcount: "7" } }
   const [originalMap, setOriginalMap] = useState({});
 
   useEffect(() => {
     const base = Array.isArray(rows) ? rows : [];
     const next = base.map((r, idx) => {
       const accountId = r?.account_id;
-      const rowKey = accountId != null && String(accountId) !== "" ? String(accountId) : `row-${idx}`;
+      const rowKey =
+        accountId != null && String(accountId) !== "" ? String(accountId) : `row-${idx}`;
 
       return {
         ...r,
@@ -134,7 +141,7 @@ export default function Tables() {
     });
     setOriginalMap(om);
 
-    // 데이터 바뀌면 페이지 0
+    // ✅ 서버 rows가 바뀌었을 때(필터/조회 변경)는 페이지 0
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   }, [rows, toPlainText, toNumberString]);
 
@@ -191,7 +198,9 @@ export default function Tables() {
     }
 
     api
-      .post("/Account/AccountSave", formData, { headers: { "Content-Type": "multipart/form-data" } })
+      .post("/Account/AccountSave", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
       .then((res) => {
         if (res.data.code === 200)
           Swal.fire({
@@ -222,10 +231,8 @@ export default function Tables() {
     (rowKey, account_id, field, value) => {
       const clean = toNumberString(value);
 
-      // 1) localRows 갱신
-      setLocalRows((prev) =>
-        prev.map((r) => (r._rowKey === rowKey ? { ...r, [field]: clean } : r))
-      );
+      // 1) localRows 갱신 (✅ 이때 data가 바뀌어도 페이징은 유지되게 아래 useReactTable 옵션으로 막음)
+      setLocalRows((prev) => prev.map((r) => (r._rowKey === rowKey ? { ...r, [field]: clean } : r)));
 
       // 2) editedMap 갱신 (+ 원래값으로 되돌리면 자동 제거)
       setEditedMap((prev) => {
@@ -297,9 +304,8 @@ export default function Tables() {
       fd.append("account_rqd_member", String(account_rqd_member));
       fd.append("account_headcount", String(account_headcount));
 
-      // ✅ 여기 2개 추가
       fd.append("account_type", String(account_type)); // 1~5
-      fd.append("meal_type", String(meal_type));       // 1~5
+      fd.append("meal_type", String(meal_type)); // 1~5
 
       try {
         const res = await api.post("/Account/AccountSave", fd, {
@@ -380,6 +386,8 @@ export default function Tables() {
         onChange={(e) => updateEditableField(rowKey, accountId, field, e.target.value)}
         size="small"
         variant="outlined"
+        // ✅ 입력이 페이지 이동(리셋)을 유발하지 않게 하려면
+        // 핵심은 아래 useReactTable의 autoResetPageIndex: false
         sx={{
           width: 70,
           "& .MuiInputBase-root": { height: 28 },
@@ -388,7 +396,7 @@ export default function Tables() {
             px: 0.75,
             fontSize: "0.75rem",
             textAlign: "center",
-            color: isDirtyCell ? "#d32f2f" : "inherit", // ✅ 빨간 글씨
+            color: isDirtyCell ? "#d32f2f" : "inherit",
             fontWeight: isDirtyCell ? 800 : 400,
           },
         }}
@@ -438,8 +446,11 @@ export default function Tables() {
         cell: (info) => info.getValue(),
       };
     });
-  }, [columns, editedMap, toPlainText, originalMap]);
+  }, [columns, editedMap, toPlainText, originalMap, updateEditableField]);
 
+  // =========================
+  // ✅ 테이블 생성
+  // =========================
   const table = useReactTable({
     data: localRows,
     columns: tableColumns,
@@ -447,6 +458,9 @@ export default function Tables() {
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+
+    // ✅✅ 핵심: 편집으로 data(localRows)가 바뀌어도 페이지가 0으로 리셋되지 않게
+    autoResetPageIndex: false,
   });
 
   if (loading) return <LoadingScreen />;

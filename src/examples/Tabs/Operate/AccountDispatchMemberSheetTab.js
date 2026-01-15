@@ -2,24 +2,98 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useReactTable, getCoreRowModel, flexRender } from "@tanstack/react-table";
 import Grid from "@mui/material/Grid";
 import MDBox from "components/MDBox";
-import MDButton from "components/MDButton";
-import { TextField, useTheme, useMediaQuery } from "@mui/material";
-import Swal from "sweetalert2";
-import api from "api/api";
-import useAccountDispatchMembersheetData, {
-  parseNumber,
-  formatNumber,
-} from "./accountDispatchMemberSheetData";
+import { TextField, useTheme, useMediaQuery, Box, Typography } from "@mui/material";
+import useAccountDispatchMembersheetData, { formatNumber } from "./accountDispatchMemberSheetData";
 import LoadingScreen from "layouts/loading/loadingscreen";
 
-function AccountDispatchMemberSheet() {
-  const [selectedAccountId, setSelectedAccountId] = useState("");
-  const [activeStatus, setActiveStatus] = useState("N");
+/**
+ * ✅ 달력 주차(월~일) 계산 (월요일 시작)
+ * - 1주차: 해당 월 1일 ~ 그 주의 일요일(또는 말일)
+ * - 이후: 월요일~일요일 단위로 끊고, 마지막 주는 말일까지
+ */
+const buildCalendarWeekRanges = (year, month) => {
+  const y = Number(year);
+  const m = Number(month); // 1~12
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const firstDow = new Date(y, m - 1, 1).getDay(); // 0=일,1=월,...6=토
 
-  // ✅ 년/월 추가 (기본값: 현재 년/월)
+  // 월요일 시작 주차 기준: 0=월..6=일
+  const firstDowMonIndex = (firstDow + 6) % 7;
+  const firstWeekDays = 7 - firstDowMonIndex;
+
+  const ranges = [];
+  let start = 1;
+  let end = Math.min(daysInMonth, firstWeekDays);
+
+  let weekNo = 1;
+  ranges.push({ weekNo, start, end });
+
+  start = end + 1;
+  weekNo += 1;
+
+  while (start <= daysInMonth) {
+    end = Math.min(daysInMonth, start + 6);
+    ranges.push({ weekNo, start, end });
+    start = end + 1;
+    weekNo += 1;
+  }
+
+  // ✅ day -> weekNo 매핑
+  const dayToWeekNo = {};
+  ranges.forEach((w) => {
+    for (let d = w.start; d <= w.end; d += 1) dayToWeekNo[String(d)] = w.weekNo;
+  });
+
+  // ✅ endDay -> weekNo 매핑 (주차 마지막날에 마커 표시용)
+  const endDayToWeekNo = {};
+  ranges.forEach((w) => {
+    endDayToWeekNo[String(w.end)] = w.weekNo;
+  });
+
+  return { daysInMonth, ranges, dayToWeekNo, endDayToWeekNo };
+};
+
+const WEEK_BG = [
+  "#FFF3B0", // 1주차
+  "#CDE8FF", // 2주차
+  "#D5F5E3", // 3주차
+  "#FADBD8", // 4주차
+  "#E8DAEF", // 5주차
+  "#FDEBD0", // 6주차
+];
+
+const getWeekBg = (weekNo) => WEEK_BG[(weekNo - 1) % WEEK_BG.length];
+
+/**
+ * ✅ row들의 주차별 salary 합계 계산
+ * - row의 "dSalary" 키들을 보고 합산
+ */
+const calcWeekSalarySums = (rows, weekRanges) => {
+  const sums = {};
+  weekRanges.forEach((w) => (sums[w.weekNo] = 0));
+
+  (rows || []).forEach((row) => {
+    weekRanges.forEach((w) => {
+      let s = 0;
+      for (let d = w.start; d <= w.end; d += 1) {
+        const salKey = `${d}Salary`;
+        s += Number(row?.[salKey] ?? 0) || 0;
+      }
+      sums[w.weekNo] += s;
+    });
+  });
+
+  return sums; // {1: xxxx, 2: yyyy, ...}
+};
+
+function AccountDispatchMemberSheet() {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
+  const [activeStatus, setActiveStatus] = useState("N");
+
+  // ✅ 거래처: 전체 옵션 제거 + 최초 진입 시 첫 번째 거래처로 자동 선택
+  const [selectedAccountId, setSelectedAccountId] = useState("");
 
   const tableContainerRef = useRef(null);
   const theme = useTheme();
@@ -32,59 +106,74 @@ function AccountDispatchMemberSheet() {
     setOriginalRows,
     accountList,
     fetchAccountMembersAllList,
+    loading,
   } = useAccountDispatchMembersheetData(selectedAccountId, activeStatus, selectedYear, selectedMonth);
 
-  const [loading, setLoading] = useState(true);
+  const [localLoading, setLocalLoading] = useState(true);
 
-  const numericCols = ["salary"];
+  const { daysInMonth, ranges: weekRanges, dayToWeekNo, endDayToWeekNo } = useMemo(() => {
+    return buildCalendarWeekRanges(selectedYear, selectedMonth);
+  }, [selectedYear, selectedMonth]);
 
-  // ✅ 조회: account / 재직여부 / 년도 / 월 변경 시 즉시 재조회
+  // ✅ accountList 로드 후: selectedAccountId 없으면 첫 번째로 세팅
   useEffect(() => {
-    setLoading(true);
-    fetchAccountMembersAllList().then(() => {
-      setLoading(false);
-    });
-  }, [selectedAccountId, activeStatus, selectedYear, selectedMonth]);
-
-  // (기존 코드 유지) - 현재 시트에선 breakfast/lunch/dinner 등이 없어도 0 처리됨
-  const calculateTotal = (row) => {
-    const breakfast = parseNumber(row.breakfast);
-    const lunch = parseNumber(row.lunch);
-    const dinner = parseNumber(row.dinner);
-    const ceremony = parseNumber(row.ceremony);
-    const avgMeals = (breakfast + lunch + dinner) / 3;
-    return Math.round(avgMeals + ceremony);
-  };
-
-  useEffect(() => {
-    if (activeRows && activeRows.length > 0) {
-      const updated = activeRows.map((row) => ({
-        ...row,
-        total: calculateTotal(row),
-      }));
-      setActiveRows(updated);
-      setOriginalRows(updated);
-    } else {
-      setOriginalRows([]);
+    if (!selectedAccountId && (accountList || []).length > 0) {
+      setSelectedAccountId(String(accountList[0].account_id));
     }
-  }, [activeRows?.length]);
+  }, [accountList, selectedAccountId]);
 
-  const columns = useMemo(() => [
-    { header: "성명", accessorKey: "name", size: 50, meta: { align: "left" } },
-    { header: "주민번호", accessorKey: "rrn", size: 100, meta: { align: "center" } },
-    { header: "업장명", accessorKey: "account_id", size: 120, meta: { align: "left" } },
-    { header: "계좌번호", accessorKey: "account_number", size: 120, meta: { align: "center" } },
-    { header: "근무횟수", accessorKey: "cnt", size: 50, meta: { align: "right" } },
-    { header: "총 금액", accessorKey: "salary", size: 50, meta: { align: "right" } },
-    { header: "퇴사여부", accessorKey: "del_yn", size: 50, meta: { align: "center" } },
-    { header: "퇴사일", accessorKey: "del_dt", size: 80, meta: { align: "center" } },
-    { header: "비고", accessorKey: "note", minWidth: 80, maxWidth: 150, meta: { align: "left" } },
-  ], []);
+  // ✅ 조회
+  useEffect(() => {
+    if (!selectedAccountId) return;
 
-  const onSearchList = (e) => {
-    setLoading(true);
-    setSelectedAccountId(e.target.value);
-  };
+    setLocalLoading(true);
+    fetchAccountMembersAllList({ snapshot: false }).then((rows) => {
+      setActiveRows(rows || []);
+      setOriginalRows(rows || []);
+      setLocalLoading(false);
+    });
+  }, [selectedAccountId, activeStatus, selectedYear, selectedMonth, daysInMonth]);
+
+  // ✅ “주차별 salary 합계” 캡션 데이터
+  const weekSalarySums = useMemo(() => {
+    return calcWeekSalarySums(activeRows, weekRanges);
+  }, [activeRows, weekRanges]);
+
+  // ✅ 일자 컬럼(1~말일)
+  const dayColumns = useMemo(() => {
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const dayKey = String(day);
+      const endWeekNo = endDayToWeekNo[dayKey];
+
+      return {
+        header: (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", lineHeight: 1.05 }}>
+            <div>{dayKey}</div>
+          </div>
+        ),
+        accessorKey: dayKey,
+        size: 44,
+        meta: { align: "center", isDay: true, day },
+      };
+    });
+  }, [daysInMonth, endDayToWeekNo]);
+
+  const columns = useMemo(
+    () => [
+      { header: "성명", accessorKey: "name", size: 90, meta: { align: "left" } },
+      { header: "주민번호", accessorKey: "rrn", size: 120, meta: { align: "center" } },
+      { header: "은행명", accessorKey: "bank_name", size: 80, meta: { align: "left" } },
+      { header: "계좌번호", accessorKey: "account_number", size: 190, meta: { align: "left" } },
+
+      ...dayColumns,
+
+      { header: "근무횟수", accessorKey: "work_cnt", size: 90, meta: { align: "right" } },
+      { header: "총 금액", accessorKey: "salary_sum", size: 110, meta: { align: "right" } },
+      { header: "비고", accessorKey: "note", minWidth: 120, maxWidth: 220, meta: { align: "left" } },
+    ],
+    [dayColumns]
+  );
 
   const table = useReactTable({
     data: activeRows,
@@ -92,98 +181,64 @@ function AccountDispatchMemberSheet() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const handleSave = async () => {
-    const changedRows = activeRows.filter((row, idx) => {
-      const original = originalRows[idx];
-      if (!original) return true;
-
-      return Object.keys(row).some((key) => {
-        if (numericCols.includes(key)) {
-          return Number(row[key] ?? 0) !== Number(original[key] ?? 0);
-        }
-        return String(row[key] ?? "") !== String(original[key] ?? "");
-      });
-    });
-
-    if (changedRows.length === 0) {
-      Swal.fire("저장할 변경사항이 없습니다.", "", "info");
-      return;
-    }
-
-    try {
-      const userId = localStorage.getItem("user_id");
-
-      const cleanRow = (row) => {
-        const newRow = { ...row };
-        Object.keys(newRow).forEach((key) => {
-          if (newRow[key] === "" || newRow[key] === undefined) {
-            newRow[key] = null;
-          }
-        });
-        return newRow;
-      };
-
-      const changedRowsWithUser = changedRows.map((row) => ({
-        ...cleanRow(row),
-        type: 5,
-        user_id: userId,
-      }));
-
-      const res = await api.post("/Operate/AccountDispatchMembersSave", {
-        data: changedRowsWithUser,
-      });
-
-      if (res.data.code === 200) {
-        Swal.fire("저장 완료", "변경사항이 저장되었습니다.", "success");
-        setOriginalRows([...activeRows]);
-        await fetchAccountMembersAllList();
-      } else {
-        Swal.fire("저장 실패", res.data.message || "서버 오류", "error");
-      }
-    } catch (err) {
-      Swal.fire("저장 실패", err.message, "error");
-    }
+  const onSearchList = (e) => {
+    setLocalLoading(true);
+    setSelectedAccountId(e.target.value);
   };
 
-  const handleAddRow = () => {
-    const defaultAccountId = selectedAccountId || (accountList?.[0]?.account_id ?? "");
+  const renderWeekCaption = () => {
+    if (!weekRanges?.length) return null;
 
-    const newRow = {
-      name: "",
-      rrn: "",
-      account_id: defaultAccountId,
-      account_number: "",
-      del_yn: activeStatus,
-      del_dt: "",
-      note: "",
-    };
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1,
+          flexWrap: "wrap",
+          alignItems: "center",
+          px: 1,
+          py: 1,
+          border: "1px solid #ddd",
+          borderRadius: 1,
+          mb: 1,
+          background: "#fafafa",
+        }}
+      >
+        <Typography sx={{ fontSize: 13, fontWeight: 700, mr: 0.5 }}>
+          주차별 급여 합계
+        </Typography>
 
-    setActiveRows((prev) => [newRow, ...prev]);
-    setOriginalRows((prev) => [newRow, ...prev]);
+        {weekRanges.map((w) => {
+          // ✅ 1주차도 다른 캡션과 동일한 테두리로 (강조 제거)
+          return (
+            <Box
+              key={w.weekNo}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.8,
+                px: 1.1,
+                py: 0.7,
+                borderRadius: 1,
+                backgroundColor: getWeekBg(w.weekNo),
+                border: "1px solid rgba(0,0,0,0.10)", // ✅ 모두 동일
+              }}
+            >
+              <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+                {w.weekNo}주차 ({w.start}~{w.end})
+              </Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                {formatNumber(weekSalarySums?.[w.weekNo] ?? 0)}원
+              </Typography>
+            </Box>
+          );
+        })}
+      </Box>
+    );
   };
 
-  const formatDateForInput = (val) => {
-    if (!val && val !== 0) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-    try {
-      const d = new Date(val);
-      if (Number.isNaN(d.getTime())) return "";
-      return d.toISOString().slice(0, 10);
-    } catch {
-      return "";
-    }
-  };
-
-  const renderTable = (tableInst, rows, originals) => {
-    const dateFields = new Set(["del_dt"]);
-    // ✅ del_yn도 select로 처리되도록 추가
-    const selectFields = new Set(["account_id", "del_yn"]);
-    const nonEditableCols = new Set(["cnt", "salary"]);
-
-    const delOptions = [
-      { value: "N", label: "재직" },
-      { value: "Y", label: "퇴사" },
-    ];
+  const renderTable = (tableInst) => {
+    const isNumericKey = (k) => k === "salary_sum" || k === "work_cnt";
 
     return (
       <MDBox
@@ -217,6 +272,7 @@ function AccountDispatchMemberSheet() {
             top: 0,
             zIndex: 2,
           },
+          // ✅ sticky: 성명~계좌번호만
           "& td:nth-of-type(1), & th:nth-of-type(1)": {
             position: "sticky",
             left: 0,
@@ -225,66 +281,26 @@ function AccountDispatchMemberSheet() {
           },
           "& td:nth-of-type(2), & th:nth-of-type(2)": {
             position: "sticky",
-            left: "85px",
+            left: "90px",
             background: "#f0f0f0",
             zIndex: 3,
           },
           "& td:nth-of-type(3), & th:nth-of-type(3)": {
             position: "sticky",
-            left: "185px",
+            left: "210px",
             background: "#f0f0f0",
             zIndex: 3,
           },
           "& td:nth-of-type(4), & th:nth-of-type(4)": {
             position: "sticky",
-            left: "300px",
-            background: "#f0f0f0",
-            zIndex: 3, // ✅ z59 오타 수정
-          },
-          "& td:nth-of-type(5), & th:nth-of-type(5)": {
-            position: "sticky",
-            left: "470px",
+            left: "290px",
             background: "#f0f0f0",
             zIndex: 3,
           },
-          "& td:nth-of-type(6), & th:nth-of-type(6)": {
-            position: "sticky",
-            left: "550px",
-            background: "#f0f0f0",
-            zIndex: 3,
-          },
-          "thead th:nth-of-type(-n+6)": { zIndex: 5 },
-          "& .edited-cell": {
-            color: "#d32f2f",
-            fontWeight: 500,
-          },
-          "td[contenteditable]": {
-            minWidth: "80px",
-            cursor: "text",
-          },
-          "& select": {
-            fontSize: "12px",
-            padding: "4px",
-            minWidth: "80px",
-            border: "none",
-            background: "transparent",
-            outline: "none",
-            cursor: "pointer",
-          },
-          "& select.edited-cell": {
-            color: "#d32f2f",
-            fontWeight: 500,
-          },
-          "& input[type='date']": {
-            fontSize: "12px",
-            padding: "4px",
-            minWidth: "80px",
-            border: "none",
-            background: "transparent",
-          },
+          "thead th:nth-of-type(-n+4)": { zIndex: 5 },
         }}
       >
-        <table className="dinersheet-table">
+        <table>
           <thead>
             {tableInst.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
@@ -298,87 +314,54 @@ function AccountDispatchMemberSheet() {
           </thead>
 
           <tbody>
-            {tableInst.getRowModel().rows.map((row, rowIndex) => (
+            {tableInst.getRowModel().rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => {
-                  const colKey = cell.column.columnDef.accessorKey;
+                  const colKey = String(cell.column.columnDef.accessorKey || "");
+                  const meta = cell.column.columnDef.meta || {};
                   const currentValue = row.getValue(colKey);
-                  const originalValue = originals?.[rowIndex]?.[colKey];
 
-                  const isNumeric = numericCols.includes(colKey);
-                  const normCurrent = isNumeric ? Number(currentValue ?? 0) : String(currentValue ?? "");
-                  const normOriginal = isNumeric ? Number(originalValue ?? 0) : String(originalValue ?? "");
-                  const isChanged = normCurrent !== normOriginal;
+                  const isDayCol = meta.isDay === true && /^\d+$/.test(colKey);
+                  const daySalaryKey = isDayCol ? `${colKey}Salary` : null;
+                  const daySalaryVal = isDayCol ? row.original?.[daySalaryKey] : null;
 
-                  const isEditable = !nonEditableCols.has(colKey);
-                  const isSelect = selectFields.has(colKey);
-                  const isDate = dateFields.has(colKey);
+                  // ✅ 주차별 배경(일자 셀에도 은은하게)
+                  const weekNo = isDayCol ? dayToWeekNo[colKey] : null;
+                  const weekBg = weekNo ? getWeekBg(weekNo) : null;
 
-                  const handleCellChange = (newValue) => {
-                    const updatedRows = rows.map((r, idx) =>
-                      idx === rowIndex
-                        ? { ...r, [colKey]: newValue, total: calculateTotal({ ...r, [colKey]: newValue }) }
-                        : r
-                    );
-                    setActiveRows(updatedRows);
-                  };
+                  // ✅ "주차 끝" 컬럼(주차 마지막날)만 더 진하게 표현
+                  const endWeekNo = isDayCol ? endDayToWeekNo[colKey] : null;
+                  const isWeekEndDay = Boolean(endWeekNo);
 
                   return (
                     <td
                       key={cell.id}
                       style={{
-                        textAlign:
-                          ["rrn", "account_number", "del_yn", "del_dt"].includes(colKey)
-                            ? "center"
-                            : colKey === "salary" || colKey === "cnt"
-                            ? "right"
-                            : "left",
+                        textAlign: isNumericKey(colKey) ? "right" : "left",
+                        backgroundColor: isDayCol ? weekBg : undefined,
+                        borderRight: isWeekEndDay ? "3px solid rgba(0,0,0,0.35)" : undefined,
                       }}
-                      contentEditable={isEditable && !isSelect && !isDate}
+                      contentEditable={false}
                       suppressContentEditableWarning
-                      className={isEditable && isChanged ? "edited-cell" : ""}
-                      onBlur={
-                        isEditable && !isSelect && !isDate
-                          ? (e) => {
-                              let newValue = e.target.innerText.trim();
-                              if (isNumeric) newValue = parseNumber(newValue);
-                              handleCellChange(newValue);
-
-                              if (isNumeric) e.currentTarget.innerText = formatNumber(newValue);
-                            }
-                          : undefined
-                      }
                     >
-                      {isSelect ? (
-                        <select
-                          value={currentValue ?? ""}
-                          onChange={(e) => handleCellChange(e.target.value)}
-                          className={isChanged ? "edited-cell" : ""}
-                          style={{ width: "100%", background: "transparent", cursor: "pointer", border: "none" }}
+                      {isDayCol ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            lineHeight: 1.1,
+                            alignItems: "center",
+                          }}
                         >
-                          {colKey === "account_id" &&
-                            (accountList || []).map((acc) => (
-                              <option key={acc.account_id} value={acc.account_id}>
-                                {acc.account_name}
-                              </option>
-                            ))}
-
-                          {colKey === "del_yn" &&
-                            delOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                        </select>
-                      ) : isDate ? (
-                        <input
-                          type="date"
-                          value={formatDateForInput(currentValue)}
-                          onChange={(e) => handleCellChange(e.target.value)}
-                          className={isChanged ? "edited-cell" : ""}
-                        />
+                          <div style={{ fontWeight: 500 }}>{currentValue ?? ""}</div>
+                          <div style={{ fontSize: 10, fontWeight: 500 }}>
+                            {/* {daySalaryVal != null && daySalaryVal !== "" ? formatNumber(daySalaryVal) : ""} */}
+                          </div>
+                        </div>
+                      ) : isNumericKey(colKey) ? (
+                        formatNumber(currentValue ?? 0)
                       ) : (
-                        (isNumeric ? formatNumber(currentValue) : currentValue) ?? ""
+                        (currentValue ?? "")
                       )}
                     </td>
                   );
@@ -391,21 +374,20 @@ function AccountDispatchMemberSheet() {
     );
   };
 
-  // ✅ 년/월 옵션 생성
-  const yearOptions = (() => {
+  // ✅ 년/월 옵션
+  const yearOptions = useMemo(() => {
     const y = now.getFullYear();
     const years = [];
     for (let i = y - 3; i <= y + 1; i += 1) years.push(String(i));
     return years;
-  })();
+  }, []);
 
-  const monthOptions = Array.from({ length: 12 }, (_, i) => String(i + 1));
+  const monthOptions = useMemo(() => Array.from({ length: 12 }, (_, i) => String(i + 1)), []);
 
-  if (loading) return <LoadingScreen />;
+  if (loading || localLoading || !selectedAccountId) return <LoadingScreen />;
 
   return (
     <>
-      {/* 상단 필터 + 버튼 */}
       <MDBox
         pt={1}
         pb={1}
@@ -426,7 +408,7 @@ function AccountDispatchMemberSheet() {
           size="small"
           value={activeStatus}
           onChange={(e) => {
-            setLoading(true);
+            setLocalLoading(true);
             setActiveStatus(e.target.value);
           }}
           sx={{ minWidth: 150 }}
@@ -441,10 +423,9 @@ function AccountDispatchMemberSheet() {
           size="small"
           value={selectedAccountId}
           onChange={onSearchList}
-          sx={{ minWidth: 150 }}
+          sx={{ minWidth: 200 }}
           SelectProps={{ native: true }}
         >
-          <option value="">전체</option>
           {(accountList || []).map((row) => (
             <option key={row.account_id} value={row.account_id}>
               {row.account_name}
@@ -452,13 +433,12 @@ function AccountDispatchMemberSheet() {
           ))}
         </TextField>
 
-        {/* ✅ 거래처 뒤에 년도/월 select 추가 */}
         <TextField
           select
           size="small"
           value={selectedYear}
           onChange={(e) => {
-            setLoading(true);
+            setLocalLoading(true);
             setSelectedYear(e.target.value);
           }}
           sx={{ minWidth: 120 }}
@@ -476,7 +456,7 @@ function AccountDispatchMemberSheet() {
           size="small"
           value={selectedMonth}
           onChange={(e) => {
-            setLoading(true);
+            setLocalLoading(true);
             setSelectedMonth(e.target.value);
           }}
           sx={{ minWidth: 100 }}
@@ -488,20 +468,16 @@ function AccountDispatchMemberSheet() {
             </option>
           ))}
         </TextField>
-
-        <MDButton variant="gradient" color="success" onClick={handleAddRow}>
-          행추가
-        </MDButton>
-
-        <MDButton variant="gradient" color="info" onClick={handleSave}>
-          저장
-        </MDButton>
       </MDBox>
 
-      <MDBox pt={1} pb={3}>
+      <MDBox pt={1} pb={1}>
+        {renderWeekCaption()}
+      </MDBox>
+
+      <MDBox pt={0} pb={3}>
         <Grid container spacing={6}>
           <Grid item xs={12}>
-            {renderTable(table, activeRows, originalRows)}
+            {renderTable(table)}
           </Grid>
         </Grid>
       </MDBox>

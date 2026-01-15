@@ -53,12 +53,10 @@ import ContractManager from "layouts/accountinfosheet";
 // 운영
 import OperateSchedule from "layouts/operate/OperateScheduleSheet";
 import OperateTab from "layouts/operate/operatetab";
-import OperateTab_2 from "layouts/operate/operatetab_2";
 import OperateTab_3 from "layouts/operate/operatetab_3";
 import AccountIssueManager from "layouts/operate/accountissuesheet";
 import BudgetManager from "layouts/operate/budgettablesheet";
 // 회계
-//import DeadlineBalance from "examples/Tabs/AccountSales/DeadlineBalanceTab";
 import AccountSales from "layouts/accountsales/accountsales";
 import PurchaseTally from "layouts/accounting/accountpurchasetally"
 import HeadOfficeCorporateCardManager from "layouts/accounting/corporatecardsheet";
@@ -68,6 +66,7 @@ import HumanResourceTab_1 from "layouts/humanresource/humanresourcetab_1";
 // 현장
 import TallyManager from "layouts/tallysheet";
 import RecordManager from "layouts/recordsheet";
+import DinersManager from "layouts/dinersnumbersheet";
 
 // 테스트
 //import Temp from "layouts/temp/AccountEventTab";
@@ -352,57 +351,57 @@ const routes = [
         allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
         accessMode: "AND",
       },
-      {
-        type: "collapse",
-        name: "본사 교육",
-        key: "account",
-        icon: <Icon fontSize="small">*</Icon>,
-        route: "/tables",
-        component: <Tables />,
-        allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
-        allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
-        accessMode: "AND",
-      },
-      {
-        type: "collapse",
-        name: "인사평가",
-        key: "account_member",
-        icon: <Icon fontSize="small">*</Icon>,
-        route: "/accountmembersheet",
-        component: <AccountMemberSheet />,
-        allowedDepartments: [0, 3, 6],   // 🔹 부서권한
-      },
-      {
-        type: "collapse",
-        name: "연봉테이블",
-        key: "business",
-        icon: <Icon fontSize="small">*</Icon>,
-        route: "/business/telemanager",
-        component: <TeleManager />,
-        allowedDepartments: [0, 3, 6],   // 🔹 부서권한
-      },
-      {
-        type: "collapse",
-        name: "복리후생",
-        key: "business",
-        icon: <Icon fontSize="small">*</Icon>,
-        route: "/business/telemanager",
-        component: <TeleManager />,
-        allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
-        allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
-        accessMode: "AND",
-      },
-      {
-        type: "collapse",
-        name: "평가/교육 자료",
-        key: "business",
-        icon: <Icon fontSize="small">*</Icon>,
-        route: "/business/telemanager",
-        component: <TeleManager />,
-        allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
-        allowedPositions: [0, 1],   // 🔹 직책권한
-        accessMode: "AND",
-      },
+      // {
+      //   type: "collapse",
+      //   name: "본사 교육",
+      //   key: "account",
+      //   icon: <Icon fontSize="small">*</Icon>,
+      //   route: "/tables",
+      //   component: <Tables />,
+      //   allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
+      //   allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
+      //   accessMode: "AND",
+      // },
+      // {
+      //   type: "collapse",
+      //   name: "인사평가",
+      //   key: "account_member",
+      //   icon: <Icon fontSize="small">*</Icon>,
+      //   route: "/accountmembersheet",
+      //   component: <AccountMemberSheet />,
+      //   allowedDepartments: [0, 3, 6],   // 🔹 부서권한
+      // },
+      // {
+      //   type: "collapse",
+      //   name: "연봉테이블",
+      //   key: "business",
+      //   icon: <Icon fontSize="small">*</Icon>,
+      //   route: "/business/telemanager",
+      //   component: <TeleManager />,
+      //   allowedDepartments: [0, 3, 6],   // 🔹 부서권한
+      // },
+      // {
+      //   type: "collapse",
+      //   name: "복리후생",
+      //   key: "business",
+      //   icon: <Icon fontSize="small">*</Icon>,
+      //   route: "/business/telemanager",
+      //   component: <TeleManager />,
+      //   allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
+      //   allowedPositions: [0, 1, 2, 3, 4, 5, 6, 7,],   // 🔹 직책권한
+      //   accessMode: "AND",
+      // },
+      // {
+      //   type: "collapse",
+      //   name: "평가/교육 자료",
+      //   key: "business",
+      //   icon: <Icon fontSize="small">*</Icon>,
+      //   route: "/business/telemanager",
+      //   component: <TeleManager />,
+      //   allowedDepartments: [0, 2, 3, 4, 5, 6],   // 🔹 부서권한
+      //   allowedPositions: [0, 1],   // 🔹 직책권한
+      //   accessMode: "AND",
+      // },
     ]
   },
   {
@@ -428,6 +427,14 @@ const routes = [
         //icon: <Icon fontSize="small">*</Icon>,
         route: "/layouts/recordsheet",
         component: <RecordManager />,
+      },
+      {
+        type: "collapse",
+        name: "🍽️ 식수현황",
+        key: "diners",
+        //icon: <Icon fontSize="small">*</Icon>,
+        route: "/diners/dinersnumber",
+        component: <DinersManager />,
       },
       // {
       //   type: "collapse",
