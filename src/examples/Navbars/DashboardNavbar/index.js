@@ -69,7 +69,8 @@ function DashboardNavbar({ absolute, light, isMini, title, showMenuButtonWhenMin
   // 관리자 여부 체크
   const isAdmin = (() => {
     const pos = String(localStorage.getItem("position") ?? "");
-    return pos === "0" || pos === "1";
+    const dept = String(localStorage.getItem("department") ?? "");
+    return pos === "0" || pos === "1" || dept === "6";
   })();
 
   // ✅ 승인대기 Dialog 상태 (Navbar에만 존재!)
